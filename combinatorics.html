@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Комбинаторика и вероятность</title><link rel="stylesheet" href="shared.css"><script src="shell.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathlive"></script><script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.js"></script><script src="lib.js"></script></head><body><div class="wrap">
+<h1>Комбинаторика, вероятность, статистика</h1><div class="sub">Перестановки, размещения, сочетания · классическая вероятность · среднее, медиана, мода, размах, дисперсия</div>
+<div class="tabs" id="tabs"></div>
+<div class="card" id="c0"><div class="row" style="margin-top:0"><label>n =<input type="text" class="sm" id="n" value="7"></label><label>k =<input type="text" class="sm" id="k" value="3"></label><button class="btn" id="go0">Посчитать</button></div><div class="small" style="margin-top:8px">n — всего элементов, k — сколько выбираем (k ≤ n)</div><div class="err" id="err"></div></div>
+<div class="card" id="c1" hidden><div class="row" style="margin-top:0"><label>благоприятных исходов m =<input type="text" class="sm" id="m" value="3"></label><label>всех исходов N =<input type="text" class="sm" id="N" value="36"></label><button class="btn" id="go1">Найти P</button></div><div id="ex1"></div></div>
+<div class="card" id="c2" hidden><input type="text" id="data" value="5, 3, 4, 5, 2, 5, 3, 4" placeholder="числа через запятую или пробел"><div class="row"><button class="btn" id="go2">Посчитать</button></div></div>
+<div id="out"></div></div>
+<script>
+const out=mount('out');let tab=0;const F=n=>{let r=1n;for(let i=2n;i<=BigInt(n);i++)r*=i;return r},big=b=>b.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+tabsInit($('#tabs'),['Комбинаторика','Вероятность','Статистика'],i=>{tab=i;[0,1,2].forEach(j=>$('#c'+j).hidden=j!==i);[run0,run1,run2][i]()});
+[['кубик: выпало 5',1,6],['две кости: сумма 11',2,36],['монета: орёл',1,2],['карта: туз из 36',4,36]].forEach(([t,m,N])=>{const b=document.createElement('button');b.className='chip';b.textContent=t;b.onclick=()=>{$('#m').value=m;$('#N').value=N;run1()};$('#ex1').appendChild(b)});
+function run0(){$('#err').textContent='';let n,k;try{n=evalConst($('#n').value);k=evalConst($('#k').value)}catch(e){$('#err').textContent='Введите числа';return}
+  if(!Number.isInteger(n)||!Number.isInteger(k)||n<0||k<0||n>60||k>n){$('#err').textContent='Нужны целые 0 ≤ k ≤ n ≤ 60';return}
+  const P=F(n),A=F(n)/F(n-k),C=A/F(k),prod=(a,b)=>Array.from({length:b},(_,i)=>a-i).join('·')||'1',st=[
+  {t:'Перестановки — порядок важен, берём все n элементов',b:`Pₙ = n!<span class="formula">P${n} = ${n}! = ${n>1?Array.from({length:n},(_,i)=>n-i).slice(0,8).join('·')+(n>8?'·…':''):'1'} = <b>${big(P)}</b></span>`},
+  {t:'Размещения — порядок важен, выбираем k из n',b:`Aₙᵏ = ${frHTML('n!','(n − k)!')}<span class="formula">A(${n},${k}) = ${frHTML(n+'!',(n-k)+'!')} = ${k?prod(n,k):'1'} = <b>${big(A)}</b></span>`},
+  {t:'Сочетания — порядок не важен',b:`Cₙᵏ = ${frHTML('n!','k!·(n − k)!')} = ${frHTML('Aₙᵏ','k!')}<span class="formula">C(${n},${k}) = ${frHTML(k?prod(n,k):'1',k+'!')} = ${frHTML(big(A),big(F(k)))} = <b>${big(C)}</b></span>Подсказка: C(n,k) = C(n, n−k) = ${big(C)}.`}];
+  put(out,stepsHTML(st,`P = ${big(P)}, &nbsp; A = ${big(A)}, &nbsp; C = ${big(C)}`))}
+function run1(){let m,N;try{m=evalConst($('#m').value);N=evalConst($('#N').value)}catch(e){return}
+  if(!(N>0)||m<0||m>N||!Number.isInteger(m)||!Number.isInteger(N)){put(out,'<div class="err">Нужны целые 0 ≤ m ≤ N, N > 0</div>');return}
+  const g=gcd(m,N),p=m/N;put(out,stepsHTML([{t:'Классическое определение вероятности',b:`P(A) = ${frHTML('m','N')}, где m — число благоприятных исходов, N — число всех равновозможных исходов.<span class="formula">P = ${frHTML(m,N)}${g>1&&m?` = ${frHTML(m/g,N/g)}`:''} ≈ ${dec(Math.round(p*10000)/10000)} = ${dec(Math.round(p*10000)/100)}%</span>`},
+    {t:'Проверка здравого смысла',b:`Вероятность всегда от 0 до 1. ${m===0?'P = 0 — невозможное событие.':m===N?'P = 1 — достоверное событие.':`Вероятность противоположного события: 1 − P = ${frHTML(N-m,N)}${gcd(N-m,N)>1?` = ${frHTML((N-m)/gcd(N-m,N),N/gcd(N-m,N))}`:''}.`}`}],`P = ${m===0?0:frHTML(m/g,N/g)}`))}
+function run2(){const v=$('#data').value.replace(/,/g,'.').split(/[\s;]+/).filter(Boolean).map(Number);if(!v.length||v.some(isNaN)){put(out,'<div class="err">Введите числа через пробел или «;»</div>');return}
+  const n=v.length,s=[...v].sort((a,b)=>a-b),sum=v.reduce((a,b)=>a+b,0),mean=sum/n,med=n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2,cnt={};v.forEach(x=>cnt[x]=(cnt[x]||0)+1);const mx=Math.max(...Object.values(cnt)),mode=Object.keys(cnt).filter(k=>cnt[k]===mx),
+  disp=v.reduce((a,x)=>a+(x-mean)**2,0)/n,fr=Object.keys(cnt).sort((a,b)=>a-b),H=Math.max(...fr.map(k=>cnt[k]));
+  const bars=fr.map((k,i)=>{const h=cnt[k]/H*90;return`<rect x="${20+i*52}" y="${110-h}" width="38" height="${h}" rx="5" fill="#3b6fe0" opacity=".8"/><text x="${39+i*52}" y="${104-h}" text-anchor="middle" font-size="13" font-weight="700" fill="#1d2433">${cnt[k]}</text><text x="${39+i*52}" y="128" text-anchor="middle" font-size="13" fill="#46506a">${dec(+k)}</text>`}).join('');
+  put(out,stepsHTML([{t:'Упорядоченный ряд',b:s.map(dec).join('; ')+` &nbsp;(n = ${n})`},
+   {t:'Среднее арифметическое',b:`x̄ = ${frHTML('сумма','n')}<span class="formula">x̄ = ${frHTML(dec(sum),n)} = ${num(snap(mean,1e-9))}</span>`},
+   {t:'Медиана — середина упорядоченного ряда',b:n%2?`Членов нечётное число — берём средний: <b>${dec(med)}</b>`:`Членов чётное число — среднее двух средних: (${dec(s[n/2-1])} + ${dec(s[n/2])}) / 2 = <b>${dec(med)}</b>`},
+   {t:'Мода и размах',b:`Мода — самое частое значение: <b>${mx===1?'нет (все значения встречаются по одному разу)':mode.map(dec).join('; ')}</b>${mx>1?` (встречается ${mx} раз)`:''}<br>Размах = max − min = ${dec(s[n-1])} − ${dec(s[0])} = <b>${dec(s[n-1]-s[0])}</b>`},
+   {t:'Дисперсия и стандартное отклонение',b:`D = ${frHTML('Σ(xᵢ − x̄)²','n')} = <b>${num(snap(disp,1e-9))}</b><br>σ = ${rt('D')} ≈ <b>${dec(Math.round(Math.sqrt(disp)*1000)/1000)}</b>`},
+   {t:'Частоты значений',b:`<svg viewBox="0 0 ${Math.max(300,fr.length*52+30)} 136" style="width:100%;max-width:${Math.max(300,fr.length*52+30)}px"><line x1="10" y1="110" x2="${fr.length*52+20}" y2="110" stroke="#1d2433" stroke-width="1.5"/>${bars}</svg>`}],`среднее ${num(snap(mean,1e-9))}, медиана ${dec(med)}, размах ${dec(s[n-1]-s[0])}`))}
+$('#go0').onclick=run0;$('#go1').onclick=run1;$('#go2').onclick=run2;
+</script></body></html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Графики</title><link rel="stylesheet" href="shared.css"><script src="shell.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathlive"></script><script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.js"></script><script src="lib.js"></script></head><body><div class="wrap">
+<h1>Построение графиков</h1><div class="sub">Параболы, прямые, гиперболы и другие функции — на листе в клетку. Одна функция в строке.</div>
+<div class="card"><div id="list"></div><div id="kb"></div>
+<div class="row"><button class="btn" id="go">Построить</button><button class="btn g" id="clr">Очистить</button>
+<label><input type="checkbox" id="oSpec" checked>особые точки</label><label><input type="checkbox" id="oTab" checked>точки таблицы</label></div><div id="ex"></div><div class="err" id="err"></div></div>
+<div id="plot"></div><div class="small" style="margin-bottom:16px">Колесо мыши — масштаб · перетаскивание — сдвиг · двойной клик — вернуть вид · наведи курсор на график, чтобы увидеть точку.</div>
+<div class="card" id="finder" hidden><h3>Найти точку на графике</h3>
+<div class="row" style="margin-top:0"><div class="cs" id="fsel"></div></div>
+<div class="row"><div class="seg" id="seg" title="Что у тебя есть: x или y"><button data-v="x" class="on">x</button><button data-v="y">y</button></div><label><span id="plab">x =</span><span id="pvh"></span></label><button class="btn g" id="bF">Найти y</button><button class="btn g" id="bC">Убрать точки</button></div><div id="pout" style="margin-top:12px"></div></div>
+<div id="cards"></div></div>
+<script>
+const cardsIn=mount('cards');
+const COL=['#e0412f','#2563eb','#16a34a','#9333ea','#ea8a00'],plot=new Plot($('#plot')),LIST=MathList($('#list'),{addHost:$('#kb'),onEnter:()=>{marks=[];$('#pout').innerHTML='';build()}}),PV=MI($('#pvh'),{small:true,placeholder:'число',onEnter:()=>doFind()});
+$('#kb').insertAdjacentHTML('beforeend','<span class="gap"></span>');
+kbInit($('#kb'),['plus','minus','mul','div','frac','sq','pow','sqrt','abs','lp','rp','x','pi']);
+chipsInit($('#ex'),['y = (1/4)x²','y = -2x²','y = x²\ny = 1.8x²\ny = (1/3)x²','y = 2x − 3','y = 6/(x-1) + 2','y = x² − 4x + 3','y = |x| − 2','y = √x'],t=>{LIST.set(t.split('\n'));marks=[];build()});
+let fns=[],marks=[];
+function analyze(f){const R=findRoots(f),ex=extrema(f),poly=polyDeg(f),yl=f(1e7),yr=f(-1e7);
+  const ha=isFinite(yl)&&isFinite(yr)&&Math.abs(yl-yr)<1e-4?snap((yl+yr)/2,1e-6):null;let hyper=null;
+  if(R.poles.length===1&&ha!==null){const m=R.poles[0],k=(f(m+1)-ha);if([[m+2,2],[m-1.5,-1.5],[m+.5,.5]].every(([x,d])=>Math.abs(f(x)-ha-k/d)<1e-6*Math.max(1,Math.abs(k))))hyper={k:snap(k),m,n:ha}}
+  return{roots:R.roots,poles:R.poles,ext:poly&&poly.length<=3?ex:ex,yint:isFinite(f(0))?f(0):null,poly,ha,hyper}}
+const li=s=>`<li>${s}</li>`;
+function domainInfo(f,A){const N=4000,a=-100,b=100,h=(b-a)/N,tr=[];let prev=null,xs=a;
+  for(let i=0;i<=N;i++){const x=a+i*h,st=isNaN(f(x))?0:1;if(prev!==null&&st!==prev)tr.push({x,from:prev});prev=st}
+  const edge=(t)=>{let lo=t.x-h,hi=t.x;for(let k=0;k<50;k++){const m=(lo+hi)/2;if((isNaN(f(m))?0:1)===t.from)lo=m;else hi=m}return snap(t.from?lo:hi,1e-7)};
+  if(tr.length===1){const e=edge(tr[0]),cl=isFinite(f(e));return tr[0].from===0?`${cl?'[':'('}${num(e)}; +∞)`:`(−∞; ${num(e)}${cl?']':')'}`}
+  if(tr.length===2&&tr[0].from===0){const e1=edge(tr[0]),e2=edge(tr[1]);return`[${num(e1)}; ${num(e2)}]`}
+  return A.poles.length?`все числа, кроме x = ${A.poles.map(num).join('; ')}`:'(−∞; +∞), все числа'}
+function rangeInfo(f,A){const p=A.poly;
+  if(p){if(p.length===1)return`{${num(p[0])}}`;if(p.length===2)return'(−∞; +∞)';if(p.length===3){const x0=snap(-p[1]/(2*p[2])),y0=snap(f(x0),1e-7);return p[2]>0?`[${num(y0)}; +∞)`:`(−∞; ${num(y0)}]`}}
+  if(A.hyper)return`(−∞; ${num(A.hyper.n)}) ∪ (${num(A.hyper.n)}; +∞)`;
+  const ys=[];let ia=0,ib=0,lo=Infinity,hi=-Infinity;for(let i=0;i<=20000;i++){const x=-200+i*.02,y=f(x);if(isFinite(y)){if(y<lo){lo=y;ia=x}if(y>hi){hi=y;ib=x}}}
+  if(lo===Infinity)return'—';const far=[f(1e6),f(-1e6)].filter(isFinite);let ul=far.some(v=>v<lo-1),uh=far.some(v=>v>hi+1);
+  for(const q of A.poles)for(const d of[1e-7,-1e-7]){const v=f(q+d);if(v<-1e5)ul=true;if(v>1e5)uh=true}
+  const ex=A.ext.filter(e=>e.min).map(e=>e.y),exM=A.ext.filter(e=>!e.min).map(e=>e.y);if(ex.length&&Math.min(...ex)<=lo+1e-3)lo=Math.min(...ex);if(exM.length&&Math.max(...exM)>=hi-1e-3)hi=Math.max(...exM);
+  const L=ul?'(−∞':`${Math.abs(ia)>190?'(':'['}${num(snap(lo,1e-6))}`,R=uh?'+∞)':`${num(snap(hi,1e-6))}${Math.abs(ib)>190?')':']'}`;return`${L}; ${R}`}
+/* ===== пошаговое вычисление значения функции ===== */
+const FR={mk:(n,d=1)=>{if(d<0){n=-n;d=-d}const g=gcd(n,d)||1;return[n/g,d/g]},add:(a,b)=>FR.mk(a[0]*b[1]+b[0]*a[1],a[1]*b[1]),sub:(a,b)=>FR.mk(a[0]*b[1]-b[0]*a[1],a[1]*b[1]),mul:(a,b)=>FR.mk(a[0]*b[0],a[1]*b[1]),div:(a,b)=>{if(!b[0])throw 0;return FR.mk(a[0]*b[1],a[1]*b[0])}};
+const frS=v=>{const m=String(v).match(/^(\d+)(?:\.(\d+))?$/);if(!m)throw 0;return FR.mk(+(m[1]+(m[2]||'')),m[2]?10**m[2].length:1)};
+function toT(n,xv){switch(n.type){
+  case'ConstantNode':return{t:'n',v:frS(n.value)};
+  case'SymbolNode':if(n.name==='x')return{t:'n',v:xv};throw 0;
+  case'ParenthesisNode':{const a=toT(n.content,xv);return a.t==='n'?a:{t:'p',a}}
+  case'OperatorNode':{const a=n.args.map(c=>toT(c,xv)),o={add:'+',subtract:'-',multiply:'*',divide:'/',pow:'^'}[n.fn];if(o)return{t:'op',o,a:a[0],b:a[1]};if(n.fn==='unaryMinus')return{t:'neg',a:a[0]};if(n.fn==='unaryPlus')return a[0];throw 0}
+  case'FunctionNode':if(n.fn.name==='sqrt'||n.fn.name==='abs')return{t:'f',f:n.fn.name,a:toT(n.args[0],xv)}}throw 0}
+let NORM=false;
+const numF=v=>(v[0]<0?'−':'')+(v[1]===1?Math.abs(v[0]):frHTML(Math.abs(v[0]),v[1]));
+function rd(t,c){switch(t.t){
+  case'n':return(t.v[0]<0&&(c==='mul'||c==='base'||c==='neg'))?`(${numF(t.v)})`:numF(t.v);
+  case'p':{if(t.a.t==='n')return rd(t.a,c);if(t.a.t==='op'&&t.a.o==='/'&&c!=='base')return rd(t.a,c);return'('+rd(t.a,'top')+')'}
+  case'neg':return'−'+rd(t.a,'neg');
+  case'f':return t.f==='sqrt'?rt(rd(t.a,'top')):'|'+rd(t.a,'top')+'|';
+  case'op':{const o=t.o;if(o==='/')return frHTML(rd(t.a,'frac'),rd(t.b,'frac'));if(o==='^')return rd(t.a,'base')+`<sup>${rd(t.b,'sup')}</sup>`;
+    if(o==='*')return rd(t.a,'mul')+' · '+rd(t.b,'mul');if(NORM&&t.b.t==='n'&&t.b.v[0]<0)return rd(t.a,'sum')+(o==='+'?' − ':' + ')+numF([-t.b.v[0],t.b.v[1]]);return rd(t.a,'sum')+(o==='+'?' + ':' − ')+(t.b.t==='n'&&t.b.v[0]<0?`(${numF(t.b.v)})`:rd(t.b,'sumr'))}}}
+const evl=t=>(t.t==='op'&&t.a.t==='n'&&t.b.t==='n')||((t.t==='neg'||t.t==='f')&&t.a.t==='n');
+const cls=t=>(t.t==='f'||(t.t==='op'&&t.o==='^'))?1:(t.t==='neg'||(t.t==='op'&&(t.o==='*'||t.o==='/')))?2:3;
+function calc(t){const a=t.a.v,b=t.b&&t.b.v;if(t.t==='neg')return[-a[0],a[1]];
+  if(t.t==='f'){if(t.f==='abs')return[Math.abs(a[0]),a[1]];const n=Math.sqrt(a[0]),d=Math.sqrt(a[1]);if(a[0]<0||n%1||d%1)throw 0;return FR.mk(n,d)}
+  switch(t.o){case'+':return FR.add(a,b);case'-':return FR.sub(a,b);case'*':return FR.mul(a,b);case'/':return FR.div(a,b);case'^':{if(b[1]!==1||Math.abs(b[0])>12)throw 0;let r=[1,1];for(let i=0;i<Math.abs(b[0]);i++)r=FR.mul(r,a);return b[0]<0?FR.div([1,1],r):r}}throw 0}
+function minCls(t){let m=9;(function w(t){if(t.t==='n'||t.t==='p')return;if(t.a)w(t.a);if(t.b)w(t.b);if(evl(t))m=Math.min(m,cls(t))})(t);return m}
+function evalAll(t,c){if(t.t==='n'||t.t==='p')return t;const u={...t};if(t.a)u.a=evalAll(t.a,c);if(t.b)u.b=evalAll(t.b,c);return(evl(t)&&cls(t)<=c)?{t:'n',v:calc(t)}:u}
+const badPar=t=>t.t==='p'?t.a.t!=='n':(t.a&&badPar(t.a))||(t.b&&badPar(t.b));
+function mapBad(t){if(t.t==='n')return t;if(t.t==='p'){if(t.a.t==='n')return t;const s=stepT(t.a);if(!s)return t;return s.t==='n'?s:{t:'p',a:s}}const r={...t};if(t.a)r.a=mapBad(t.a);if(t.b)r.b=mapBad(t.b);return r}
+function sumAll(t){if(t.t==='n'||t.t==='p')return t;const u={...t};if(t.a)u.a=sumAll(t.a);if(t.b)u.b=sumAll(t.b);return(u.t==='op'&&(u.o==='+'||u.o==='-')&&u.a.t==='n'&&u.b.t==='n')?{t:'n',v:calc(u)}:u}
+function stepT(t){if(t.t==='n')return null;if(badPar(t))return mapBad(t);const c=minCls(t);return c===9?null:(c===3?sumAll(t):evalAll(t,2))}
+function chainFor(fn,x){const y=fn.f(x);if(!isFinite(y))return{html:'функция не определена',y:NaN};
+  const tail=()=>toFr(y,200,1e-9)?'= '+fmtNum(snap(y,1e-9),'solution'):'≈ '+decStr(y,4);
+  try{const xf=toFr(x,16);if(!xf)throw 0;let t=toT(math.parse(normExpr(fn.expr)),FR.mk(xf[0],xf[1]));NORM=false;const parts=[rd(t,'top')];let last=parts[0];NORM=true;
+    for(let i=0;i<10;i++){let s;try{s=stepT(t)}catch(e){break}if(!s)break;t=s;const r=rd(t,'top');if(r!==last){parts.push(r);last=r}}
+    NORM=false;if(t.t==='n'&&Math.abs(t.v[0]/t.v[1]-y)>1e-7)throw 0;let h=parts.join(' = ');
+    if(t.t!=='n')h+=' '+tail();else if(t.v[1]!==1){if(Math.abs(t.v[0])>t.v[1])h+=' = '+fracMix(t.v[0],t.v[1]);const td=termDigits(t.v[1]);h+=(td>=0&&td<=4?' = ':' ≈ ')+decStr(y,4)}
+    return{html:h,y}}
+  catch(e){NORM=false;return{html:tail(),y}}}
+function domBounds(f){const N=4000,a=-100,h=200/N,o={lo:null,hi:null},df=x=>!isNaN(f(x));let prev=null;
+  for(let i=0;i<=N;i++){const x=a+i*h,st=df(x);if(prev!==null&&st!==prev){let lo=x-h,hi=x;for(let k=0;k<50;k++){const m=(lo+hi)/2;if(df(m)===prev)lo=m;else hi=m}const e=snap(prev?lo:hi,1e-7);if(!prev)o.lo=e;else o.hi=e}prev=st}return o}
+const niceness=y=>{if(!isFinite(y))return-100;const f=toFr(y,200,1e-9);let q=f?(f[1]===1?10:f[1]<=5?6:f[1]<=10?3:0):0;if(Math.abs(y)>30)q-=3;return q};
+function smartXs(f,center,count=9){const seen=new Map(),add=x=>{x=snap(x,1e-9);if(!seen.has(x))seen.set(x,niceness(f(x)))};
+  for(const st of[.5,1,2,3])for(let i=-8;i<=8;i++)add(center+i*st);for(let i=0;i<=6;i++){add(center+i*i);add(center+(i/2)**2)}
+  return[...seen].filter(([x,q])=>q>-50).sort((a,b)=>b[1]-a[1]||Math.abs(a[0]-center)-Math.abs(b[0]-center)).slice(0,count).map(a=>a[0]).sort((a,b)=>a-b)}
+const divs=n=>{n=Math.abs(n);const r=[];for(let i=1;i<=n;i++)if(n%i===0)r.push(i);return r};
+function tableXs(fn,A){const c=A.poly,sq9=x=>Array.from({length:9},(_,i)=>x+i-4);
+  if(c&&c.length===3){const a=c[2],fa=toFr(Math.abs(a),64),x0=snap(-c[1]/(2*a));let step=1,note='';
+    if(fa&&fa[1]>1){const q=fa[1],r=Math.round(Math.sqrt(q));step=r*r===q?r:q;if(step>6)step=1;else{const nm=fa[0]===1?{2:'половина',3:'треть',4:'четверть',5:'пятая часть'}[q]:null;
+      note=`Шаг таблицы равен ${step}, так как коэффициент a = ${fmtNum(a,'coef')}${nm?` (это ${nm})`:''}. Если брать x подряд (1, 2, 3, …), значения y получаются дробными. Чтобы y были целыми, берём x, кратные ${step}${step===2?', то есть только чётные':''}.`}}
+    if(Math.abs(a)>0&&Math.abs(a)<0.1&&step===1){step=Math.ceil(Math.sqrt(1/Math.abs(a)));note=`Шаг таблицы равен ${step}, так как коэффициент a = ${fmtNum(a,'coef')} очень мал: при шаге 1 значения y почти не меняются, и разницу на графике не видно.`}
+    const cx=step===1?(toFr(x0,2)?x0:Math.round(x0)):Math.round(x0/step)*step;
+    return{xs:Array.from({length:9},(_,i)=>snap(cx+(i-4)*step,1e-9)),cx,x0,step,note,kind:'par'}}
+  if(A.hyper){const{k,m}=A.hyper,fk=toFr(Math.abs(k),64),p=fk?fk[0]:Math.round(Math.abs(k));let D=divs(p).filter(d=>d<=12);const fromK=D.length>=2;
+    for(const e of[1,2,3,4,5,6,8,10,12]){if(D.length>=4)break;if(!D.includes(e))D.push(e)}D=D.sort((a,b)=>a-b).slice(0,4);
+    return{xs:[...D.map(d=>snap(m-d)).reverse(),...D.map(d=>snap(m+d))],cx:m,step:1,kind:'hyp',note:fromK?`Значения x — это делители числа k = ${fmtNum(k,'coef')}, сдвинутые на m = ${fmtNum(m,'table')}: так значения y получаются целыми.`:''}}
+  if(c&&c.length<=2){const k=c.length===2?c[1]:0,fk=toFr(Math.abs(k),64);let step=1,note='';if(fk&&fk[1]>1&&fk[1]<=6){step=fk[1];note=`Шаг таблицы равен ${step}, так как коэффициент k = ${fmtNum(k,'coef')} — дробь со знаменателем ${step}. Если брать x подряд, значения y получаются дробными. Чтобы y были целыми, берём x, кратные ${step}.`}
+    return{xs:Array.from({length:9},(_,i)=>(i-4)*step),cx:0,step,note,kind:'lin'}}
+  const d=domBounds(fn.f);let cx=0;if(d.lo!==null&&d.hi===null)cx=d.lo;else if(d.hi!==null&&d.lo===null)cx=d.hi;else if(d.lo!==null)cx=snap((d.lo+d.hi)/2,1e-7);else cx=A.ext.length?Math.round(A.ext[0].x):0;
+  const xs=smartXs(fn.f,cx,9),irr=xs.some(x=>{const y=fn.f(x);return isFinite(y)&&!toFr(y,200,1e-9)});
+  return{xs,cx,step:1,kind:'gen',note:irr?'Значения y дробные, так как корни иррациональные — строим по приближённым точкам.':''}}
+const pr=v=>v<0?`(${num(v)})`:num(v);
+const tipStore=[];
+const S=x=>fmtNum(x,'solution'),TB=x=>fmtNum(x,'table');
+function solutionHTML(fn,A){const T=tableXs(fn,A),c=A.poly,st=[];fn.table=T.xs.map(x=>[x,fn.f(x)]);
+  const CH=T.xs.map(x=>chainFor(fn,x)),ti=T.xs.map((x,i)=>tipStore.push(`<b>x = ${TB(x)}</b><br>y = ${CH[i].html}`)-1),uid=ti[0];
+  const cellH=(h,c,i)=>`<td class="hc" data-col="${uid}-${i}" data-ti="${ti[i]}"${c?' style="background:#dbe8ff;font-weight:700"':''}>${h}</td>`;
+  const hl=x=>T.kind==='par'&&Math.abs(x-T.cx)<1e-9,isV=x=>T.kind==='par'&&Math.abs(x-T.x0)<1e-9,yv=y=>isFinite(y)?TB(snap(y,1e-7)):'—';
+  const compact=`<div style="overflow-x:auto"><table class="t"><tr><th>x</th>${fn.table.map(([x],i)=>cellH(TB(x),hl(x),i)).join('')}</tr><tr><th>y</th>${fn.table.map(([x,y],i)=>cellH(yv(y),hl(x),i)).join('')}</tr></table></div>`+'<div class="small" style="margin-top:4px">Наведи курсор на столбец — появится полное решение для этого x.</div>'+(T.note?`<div class="small" style="margin-top:4px">${T.note}</div>`:'');
+  const rows=T.xs.map((x,i)=>isV(x)?'':`<tr><td>${TB(x)}</td><td style="text-align:left;white-space:nowrap">y = ${CH[i].html}</td></tr>`).join('');
+  const detail=`<table class="t"><tr><th>x</th><th>Подстановка и вычисление</th></tr>${rows}</table>`;
+  const sym=()=>{const L=[];for(let k=1;k<=4;k++){const a=fn.table.find(p=>Math.abs(p[0]-(T.cx-k*T.step))<1e-9),b=fn.table.find(p=>Math.abs(p[0]-(T.cx+k*T.step))<1e-9);if(a&&b&&isFinite(a[1])&&Math.abs(a[1]-b[1])<1e-9)L.push(`f(${TB(a[0])}) = f(${TB(b[0])})`)}return L.join(', ')};
+  if(T.kind==='par'){const[cc,b,a]=c,y0=snap(fn.f(T.x0),1e-7),ch=chainFor(fn,T.x0);
+    st.push({t:'Находим вершину — она будет в центре таблицы',b:`x₀ = −${frHTML('b','2a')} = −${frHTML(pr(b),'2·'+pr(a))} = <b>${S(T.x0)}</b><span class="formula">y₀ = ${ch.html}</span>Вершина: <b>(${TB(T.x0)}; ${TB(y0)})</b>.${Math.abs(T.cx-T.x0)<1e-9?'':' Центр таблицы берём в ближайшем удобном x = '+TB(T.cx)+'.'}`});
+    st.push({t:'Симметрия: правую половину можно не считать',b:`Центр таблицы — вершина (${TB(T.x0)}; ${TB(y0)}). Парабола симметрична относительно прямой x = ${TB(T.x0)}, поэтому ${sym()||'значения слева и справа от центра совпадают'}.`});
+    st.push({t:'Таблица для тетради',b:compact});
+    st.push({t:'Откуда взялись значения',b:detail+'Вершину здесь не повторяем — мы посчитали её выше.'});
+    st.push({t:'Проверка по опорным точкам',b:`(0; ${TB(snap(cc,1e-7))}) — пересечение с Oy; ${A.roots.length?'нули: '+A.roots.map(r=>`(${TB(r)}; 0)`).join(', ')+' — решения уравнения f(x) = 0;':'нулей нет;'} вершина (${TB(T.x0)}; ${TB(y0)}). Если таблица им противоречит — где-то ошибка.`});
+    st.push({t:'Строим график',b:`Отметь точки на клетчатом листе и проведи через них <b>плавную</b> линию (не ломаную). Ветви ${a>0?'направлены вверх':'направлены вниз'}.`})}
+  else if(T.kind==='lin'){const k=c&&c.length===2?c[1]:0;
+    st.push({t:'Таблица для тетради',b:'Для прямой достаточно двух точек, но возьмём девять — так легко проверить себя.'+compact});
+    st.push({t:'Откуда взялись значения',b:detail});
+    st.push({t:'Проверка',b:k?`Когда x увеличивается на ${T.step}, y каждый раз ${k>0?'растёт':'уменьшается'} на ${S(Math.abs(k*T.step))}. Если шаг получился другой — ошибка в вычислении.`:'Все y одинаковые — график горизонтальная прямая.'});
+    st.push({t:'Строим график',b:'Отметь точки — они лягут на одну прямую. Приложи линейку и проведи линию через все точки.'})}
+  else if(T.kind==='hyp'){const{m,n}=A.hyper;
+    st.push({t:'Особая точка',b:`При x = ${TB(m)} знаменатель равен 0 — функция там не определена, поэтому в таблице этого x нет. Берём по 4 значения слева и справа (8 точек).`});
+    st.push({t:'Таблица для тетради',b:compact});st.push({t:'Откуда взялись значения',b:detail});
+    st.push({t:'Проверка и построение',b:`Центр симметрии гиперболы — точка (${TB(m)}; ${TB(n)}): точки справа и слева от x = ${TB(m)} лежат симметрично относительно неё. Рисуем две ветви отдельно, каждая приближается к асимптотам x = ${TB(m)} и y = ${TB(n)}, но не пересекает их.`})}
+  else{st.push({t:'Выбираем значения x',b:`Берём девять значений x${A.poles.length?', не равных '+A.poles.map(TB).join(', '):''}${isNaN(fn.f(T.cx-8))||isNaN(fn.f(T.cx+8))?', внутри области определения':''}, при которых y выходят «красивыми» (целыми или простыми дробями), насколько это возможно.`});
+    st.push({t:'Таблица для тетради',b:compact});st.push({t:'Откуда взялись значения',b:detail});st.push({t:'Строим график',b:'Отметь точки на клетчатом листе и соедини их плавной линией.'})}
+  return`<div class="small" style="margin:12px 0 6px"><b>Как построить график по точкам</b></div>`+stepsHTML(st)}
+/* ===== определение типа графика (9 класс) ===== */
+const hasX=n=>{let f=false;n.traverse(c=>{if(c.type==='SymbolNode'&&c.name==='x')f=true});return f};
+function detectFamily(expr,A){let ast;try{ast=math.parse(normExpr(expr))}catch(e){return{type:'other'}}let den=false,sq=false,ab=false;
+  ast.traverse(n=>{if(n.type==='OperatorNode'&&n.fn==='divide'&&hasX(n.args[1]))den=true;if(n.type==='FunctionNode'&&n.fn.name==='sqrt'&&hasX(n.args[0]))sq=true;if(n.type==='FunctionNode'&&n.fn.name==='abs'&&hasX(n.args[0]))ab=true});
+  const f=compile(expr),c=A.poly;
+  if(den)return A.hyper?{type:'hyperbola',params:A.hyper}:{type:'rational',params:{poles:A.poles}};
+  if(sq){const d=domBounds(f);if(d.lo!==null&&d.hi===null){const n=f(d.lo);return{type:'sqrt',params:{m:d.lo,n,k:f(d.lo+1)-n,dir:'right'}}}
+    if(d.hi!==null&&d.lo===null){const n=f(d.hi);return{type:'sqrt',params:{m:d.hi,n,k:f(d.hi-1)-n,dir:'left'}}}return{type:'sqrt',params:null}}
+  if(ab){const ks=[];for(let x=-60;x<=60;x+=.02){const h=.01;if(Math.abs(f(x+h)+f(x-h)-2*f(x))>.015){const r=snap(x,1e-3);if(!ks.some(q=>Math.abs(q-r)<.1))ks.push(r)}}
+    if(ks.length===1){const m=snap(ks[0],1e-2),n=f(m);return{type:'abs',params:{m,n,k:f(m+1)-n}}}return{type:'abs',params:null}}
+  if(c){if(c.length===1)return{type:'const',params:{c:c[0]}};if(c.length===2)return{type:'line',params:{k:c[1],b:c[0]}};
+    if(c.length===3){const a=c[2],b=c[1],x0=snap(-b/(2*a));return{type:'parabola',params:{a,b,c:c[0],x0,y0:snap(f(x0),1e-7)}}}return{type:'poly',params:{deg:c.length-1}}}
+  return{type:'other'}}
+const CF=x=>fmtNum(x,'coef'),xm=m=>m===0?'x':`x ${m<0?'+':'−'} ${CF(Math.abs(m))}`;
+function summary(fam,A){const p=fam.params;switch(fam.type){
+  case'parabola':return`Тип: парабола, ветви ${p.a>0?'вверх':'вниз'}. Вершина: (${CF(p.x0)}; ${CF(p.y0)}). Ось: x = ${CF(p.x0)}. ${A.roots.length?'Нули: '+A.roots.map(TB).join(' и '):'Нулей нет'}.`;
+  case'line':return`Тип: прямая, ${p.k>0?'возрастает':'убывает'} (k = ${CF(p.k)}). Пересекает Oy в (0; ${CF(p.b)}), Ox в (${CF(snap(-p.b/p.k))}; 0).`;
+  case'const':return`Тип: постоянная функция — горизонтальная прямая y = ${CF(p.c)}.`;
+  case'hyperbola':return`Тип: гипербола, ветви в ${p.k>0?'I и III':'II и IV'} четвертях относительно центра. Центр: (${CF(p.m)}; ${CF(p.n)}). Асимптоты: x = ${CF(p.m)} и y = ${CF(p.n)}.`;
+  case'rational':return`Тип: дробно-рациональная функция. Вертикальные асимптоты: x = ${p.poles.map(TB).join(', ')}.`;
+  case'sqrt':return p?`Тип: квадратный корень. Область определения: x ${p.dir==='right'?'≥':'≤'} ${CF(p.m)}. График начинается в точке (${CF(p.m)}; ${CF(p.n)}) и идёт ${p.k>0?'вверх':'вниз'}.`:'Тип: квадратный корень (график ограничен областью определения).';
+  case'abs':return p?`Тип: модуль («галочка»). Вершина: (${CF(p.m)}; ${CF(p.n)}), ветви ${p.k>0?'вверх':'вниз'}.`:'Тип: функция с модулем (ломаная линия).';
+  case'poly':return`Тип: многочлен ${p.deg}-й степени (функция общего вида).`;
+  default:return'Тип: функция общего вида.'}}
+const sqS=D=>{let s=1,m=D;for(let i=2;i*i<=m;i++)while(m%(i*i)===0){m/=i*i;s*=i}return[s,m]};
+const box=(t,b)=>`<div style="background:#f0f7ff;padding:8px 12px;border-radius:8px;margin-top:6px;border-left:3px solid var(--ac);font-size:14px"><b>${t}</b><br>${b}</div>`;
+function dExplain(D){const cur=D>0?1:D===0?2:3,w=(i,t)=>i===cur?`<b>${t}</b>`:`<span style="opacity:.55">${t}</span>`;
+  return box('Почему так?',[w(1,`D > 0 (например, 4, 9, 64) → <u>два корня</u>. Корни считаем по формуле x = ${frHTML('−b ± '+rt('D'),'2a')}: «плюс» и «минус» перед √D дают два разных числа. Парабола пересекает ось Ox в двух точках.`),
+    w(2,'D = 0 → <u>один корень</u>. √0 = 0, а «плюс-минус ноль» ничего не меняет: оба значения совпадают. Парабола касается оси Ox вершиной.'),
+    w(3,'D < 0 (например, −5, −12) → <u>корней нет</u>. Из отрицательного числа нельзя извлечь корень (в школе), поэтому x найти нельзя. Парабола вообще не долетает до оси Ox.')].join('<br>'))}
+function zerosBox(fn,A,fam){const p=fam.params,intro='Ось Ox — горизонтальная ось, где <b>y всегда равен 0</b>. Подставим y = 0 в формулу и решим получившееся уравнение:';let b='';
+  const fx=`<span class="formula">${pretty(fn.expr)} = 0</span>`;
+  switch(fam.type){
+  case'parabola':{const{a,b:bb,c}=p,D=snap(bb*bb-4*a*c);b=`<span class="formula">${polyStr([c,bb,a])} = 0</span>Это квадратное уравнение. Находим дискриминант:<span class="formula">D = b² − 4ac = ${pr(bb)}² − 4·${pr(a)}·${pr(c)} = ${CF(D)}</span>`;
+    if(D<0)b+='D < 0 — решений нет, поэтому парабола не пересекает ось Ox.';
+    else if(D===0)b+=`D = 0 — корень один:<span class="formula">x = −${frHTML('b','2a')} = −${frHTML(pr(bb),'2·'+pr(a))} = ${S(snap(-bb/(2*a)))}</span>`;
+    else{const r=Math.sqrt(D),rf=toFr(r,64,1e-9),den='2·'+pr(a);
+      if(rf){const x1=snap((-bb-r)/(2*a)),x2=snap((-bb+r)/(2*a));b+=`D > 0 — два корня:<span class="formula">x = ${frHTML('−b ± '+rt('D'),'2a')} = ${frHTML(`−${pr(bb)} ± ${rt(CF(D))}`,den)} = ${frHTML(`${CF(-bb)} ± ${CF(snap(r))}`,den)}</span><span class="formula">x₁ = ${frHTML(`${CF(-bb)} − ${CF(snap(r))}`,den)} = ${S(x1)}</span><span class="formula">x₂ = ${frHTML(`${CF(-bb)} + ${CF(snap(r))}`,den)} = ${S(x2)}</span>`}
+      else if(Number.isInteger(D)){const[s2,m]=sqS(D),u=-bb/(2*a),w=Math.abs(s2/(2*a));b+=`D > 0, но √D — не целое число:<span class="formula">x = ${frHTML('−b ± '+rt('D'),'2a')} = ${Math.abs(u)>1e-12?CF(snap(u,1e-9))+' ':''}± ${Math.abs(w-1)<1e-12?'':CF(snap(w,1e-9))}${rt(String(m))} ≈ ${decStr(A.roots[0],2)} и ${decStr(A.roots[1],2)}</span>`}
+      else b+=`Корни: ${A.roots.map(S).join('; ')}`}break}
+  case'line':b=`<span class="formula">${polyStr([p.b,p.k])} = 0</span>Переносим свободный член вправо:<span class="formula">${polyStr([0,p.k])} = ${CF(-p.b)}</span>Делим обе части на ${CF(p.k)}:<span class="formula">x = ${frHTML(CF(-p.b),CF(p.k))} = ${S(snap(-p.b/p.k))}</span>`;break;
+  case'const':b=p.c===0?'Функция равна нулю при любом x: график совпадает с осью Ox.':`Функция всегда равна ${CF(p.c)} и никогда не равна 0 — нулей нет.`;break;
+  case'hyperbola':{const{k,m,n}=p;if(n===0)b=fx+`Дробь равна нулю только тогда, когда <b>числитель равен нулю</b>. Но числитель — это число ${CF(k)}, а оно не 0. Значит, решений нет.`;
+    else{const xm_=xm(m);b=fx+`Переносим ${CF(n)} вправо:<span class="formula">${frHTML(CF(k),xm_)} = ${CF(-n)}</span>Отсюда <span class="formula">${xm_} = ${frHTML(CF(k),CF(-n))} = ${S(snap(-k/n))}</span><span class="formula">x = ${S(snap(-k/n+m))}</span>`}break}
+  case'abs':if(p){const r=snap(-p.n/p.k);b=fx+`Выражаем модуль: <span class="formula">|${xm(p.m)}| = ${S(r)}</span>`+(r<0?'Модуль не бывает отрицательным — решений нет.':r===0?`Модуль равен нулю только когда выражение внутри равно 0: x = ${S(p.m)}.`:`Значит, выражение внутри равно ${S(r)} или ${S(-r)}: x = ${S(snap(p.m+r))} или x = ${S(snap(p.m-r))}.`)}break;
+  case'sqrt':if(p&&p.dir==='right'){const r=snap(-p.n/p.k);b=fx+`Выражаем корень: <span class="formula">√(${xm(p.m)}) = ${S(r)}</span>`+(r<0?'Квадратный корень не бывает отрицательным — решений нет.':`Возводим обе части в квадрат: ${p.m===0?'':xm(p.m)+' = '+S(snap(r*r))+', откуда '}x = ${S(snap(p.m+r*r))}.`)}break}
+  if(!b)b=fx+(A.roots.length?`Решаем уравнение: ${A.roots.map(S).join('; ')}.`:'Решений нет.');
+  return box('Как мы это узнали?',intro+b)}
+function card(fn){const A=fn.A,c=A.poly;const fam=detectFamily(fn.expr,A);let h=`<h3 style="color:${fn.color}">y = ${pretty(fn.expr)}</h3><div style="font-weight:800;margin:2px 0 10px;line-height:1.5">${summary(fam,A)}</div><ul class="info">`;
+  if(c&&c.length===1)h+=li(`<b>Постоянная функция</b>: график — горизонтальная прямая y = ${CF(c[0])}.`);
+  else if(c&&c.length===2){const[b,k]=c;h+=li(`<b>Линейная функция</b> y = kx + b, здесь k = ${CF(k)}, b = ${CF(b)}.`)+li(k>0?'k > 0 — функция <b>возрастает</b> (прямая идёт вверх).':'k < 0 — функция <b>убывает</b> (прямая идёт вниз).')+li(`Прямая задаётся двумя точками: (0; ${CF(b)}) и (${CF(snap(-b/k))}; 0). Отметь их и проведи линейку.`)}
+  else if(c&&c.length===3){const[cc,b,a]=c,x0=snap(-b/(2*a)),y0=snap(a*x0*x0+b*x0+cc),D=snap(b*b-4*a*cc);
+    h+=li(`<b>Парабола</b> y = ax² + bx + c: a = ${CF(a)}, b = ${CF(b)}, c = ${CF(cc)}.`)+li(a>0?'a > 0 — <b>ветви вверх</b>, вершина — наименьшая точка.':'a < 0 — <b>ветви вниз</b>, вершина — наибольшая точка.')
+      +li(`Вершина: x₀ = −${frHTML('b','2a')} = ${CF(x0)}, y₀ = ${CF(y0)}. Ось симметрии: x = ${CF(x0)}.`)+li(Math.abs(a)>1?`|a| = ${CF(Math.abs(a))} > 1 — парабола «уже», чем y = x².`:Math.abs(a)<1?`|a| = ${CF(Math.abs(a))} < 1 — парабола «шире», чем y = x².`:'|a| = 1 — такая же форма, как у y = x².')
+      +li(`D = b² − 4ac = ${CF(D)} → ${D>0?'<b>два корня</b>':D===0?'<b>один корень</b>':'<b>корней нет</b>'}.${dExplain(D)}`)}
+  else if(A.hyper){const{k,m,n}=A.hyper;h+=li(`<b>Гипербола</b> y = ${frHTML('k','x − m')} + n: k = ${CF(k)}, m = ${CF(m)}, n = ${CF(n)}.`)+li(`Центр симметрии — точка (${CF(m)}; ${CF(n)}). Асимптоты: x = ${CF(m)} и y = ${CF(n)} — к ним график приближается, но не касается.`)+li(k>0?'k > 0 — ветви в I и III «четвертях» относительно центра.':'k < 0 — ветви в II и IV «четвертях» относительно центра.')+li('Две ветви рисуй отдельно — через точку x = m график не проходит.')}
+  else if(A.poles.length)h+=li(`<b>Дробно-рациональная функция</b>: при x = ${A.poles.map(p=>CF(p)).join(', ')} она не определена — там вертикальная асимптота (штриховая линия).`);
+  else if(fam.type==='sqrt')h+=li(`<b>Квадратный корень</b> определён только там, где подкоренное выражение неотрицательно. График — «половина параболы, лежащей на боку»; чем дальше вправо, тем медленнее он растёт.`);
+  else if(fam.type==='abs')h+=li('<b>Модуль</b> не бывает отрицательным: график состоит из двух лучей, сходящихся в вершине («галочка»).');
+  else h+=li('Функция общего вида. Чтобы построить график, составь таблицу значений и соедини точки плавной линией.');
+  if(A.ha!==null&&!A.hyper&&A.poles.length)h+=li(`Горизонтальная асимптота: y = ${CF(A.ha)}.`);
+  h+=li(`<b>Область определения:</b> D(f) = ${domainInfo(fn.f,A)}.`)+li(`<b>Область значений:</b> E(f) = ${rangeInfo(fn.f,A)}.`);
+  h+=li((A.roots.length?`<b>Нули функции</b> (пересечение с Ox, y = 0): x = ${A.roots.map(TB).join('; ')}.`:'График <b>не пересекает</b> ось Ox — нулей нет.')+zerosBox(fn,A,fam));
+  if(A.yint!==null){const ch=chainFor(fn,0);h+=li(`<b>Пересечение с Oy:</b> (0; ${CF(snap(A.yint))}).`+box('Как мы это узнали?',`Ось Oy — вертикальная ось, где <b>x всегда равен 0</b>. Подставим x = 0 в формулу:<span class="formula">y(0) = ${ch.html}</span>`+(c&&c.length===3?'Это и есть свободный член <b>c</b> (число без x): у любой параболы y = ax² + bx + c график пересекает Oy в точке (0; c).':'')))}
+  return`<div class="info" style="margin-bottom:22px;padding-bottom:6px;border-bottom:1px solid var(--bd)">${h}</ul>${solutionHTML(fn,A)}</div>`}
+function build(){$('#err').textContent='';tipStore.length=0;
+  try{fns=LIST.values().map((raw,i)=>{const e=stripY(raw);return{raw,expr:e,f:compile(e),color:COL[i%5],label:'y = '+prettyT(e),html:'y = '+pretty(e)}})}catch(e){$('#err').textContent='Не понял выражение: '+e.message;return}
+  if(!fns.length)return;$('#finder').hidden=false;renderSel();
+  const items=[],P=[];let cards='';
+  fns.forEach(fn=>{const A=fn.A=analyze(fn.f);cards+=card(fn);items.push({type:'fn',f:fn.f,color:fn.color,label:fn.label,html:fn.html});
+    A.poles.forEach(p=>{items.push({type:'vline',x:p,color:fn.color});P.push([p,0])});if(A.ha!==null&&A.poles.length)items.push({type:'hline',y:A.ha,color:fn.color});
+    if($('#oSpec').checked){A.roots.slice(0,6).forEach(r=>{items.push({type:'pt',x:r,y:0,color:fn.color,small:true});P.push([r,0])});
+      if(A.yint!==null){items.push({type:'pt',x:0,y:A.yint,color:fn.color,small:true});P.push([0,A.yint])}
+      A.ext.slice(0,3).forEach(e=>{items.push({type:'pt',x:e.x,y:e.y,color:fn.color,pulse:true,guide:true,nolabel:true});P.push([e.x,e.y])});
+      if(A.hyper){items.push({type:'pt',x:A.hyper.m,y:A.hyper.n,color:fn.color,pulse:true,guide:true,nolabel:true});P.push([A.hyper.m,A.hyper.n])}}
+    if($('#oTab').checked)fn.table.forEach(([x,y])=>{if(isFinite(y)&&Math.abs(y)<1e3){items.push({type:'pt',x,y,color:fn.color,small:true,label:''});if(Math.abs(y)<=25)P.push([x,y])}})});
+  marks.forEach(m=>{items.push({type:'pt',x:m.x,y:m.y,color:'#0d9488',pulse:true,guide:true});P.push([m.x,m.y])});if(marks.hline!==undefined)items.push({type:'hline',y:marks.hline,color:'#0d9488'});
+  plot.set(items,P);put(cardsIn,cards)}
+/* ---- поиск точки ---- */
+function subst(expr,xv){const f=toFr(xv,16),s=f?(f[1]===1?String(f[0]):`(${f[0]}/${f[1]})`):String(xv);return pretty(expr.replace(/(?<![a-z])x(?![a-z])/g,`(${s})`))}
+let sel=0,given='x';
+const dot=f=>`<i class="cs-d" style="background:${f.color}"></i>`;
+function renderSel(){const host=$('#fsel');if(sel>=fns.length)sel=0;
+  host.innerHTML=`<button type="button" class="cs-b"><span style="display:flex;align-items:center;gap:10px">${dot(fns[sel])}<span>${fns[sel].html}</span></span><span>▾</span></button><div class="cs-l" hidden>${fns.map((f,i)=>`<div class="cs-o${i===sel?' on':''}" data-i="${i}">${dot(f)}<span>${f.html}</span></div>`).join('')}</div>`;
+  const b=host.firstChild,l=host.lastChild;b.onclick=e=>{e.stopPropagation();l.hidden=!l.hidden;b.classList.toggle('open',!l.hidden)};l.onclick=e=>{const o=e.target.closest('.cs-o');if(!o)return;sel=+o.dataset.i;renderSel()}}
+document.addEventListener('click',()=>{const l=$('#fsel .cs-l');if(l){l.hidden=true;$('#fsel .cs-b').classList.remove('open')}});
+$('#seg').onclick=e=>{const b=e.target.closest('button');if(!b)return;given=b.dataset.v;[...$('#seg').children].forEach(c=>c.classList.toggle('on',c===b));$('#plab').textContent=given+' =';$('#bF').textContent='Найти '+(given==='x'?'y':'x')};
+function subst(expr,xv){const f=toFr(xv,16),s=f?(f[1]===1?String(f[0]):`(${f[0]}/${f[1]})`):String(xv);return pretty(expr.replace(/(?<![a-z])x(?![a-z])/g,`(${s})`))}
+const ans=h=>`<div class="answer"><div class="l">Ответ</div><div class="v">${h}</div></div>`,AN=v=>fmtNum(v,'answer');
+function refine(g,x){for(let i=0;i<8;i++){const h=1e-6,d=(g(x+h)-g(x-h))/(2*h);if(!isFinite(d)||Math.abs(d)<1e-12)break;const nx=x-g(x)/d;if(!isFinite(nx))break;x=nx}return x}
+function quadExact(fn,y,R){const c=fn.A.poly;if(!c||c.length!==3||R.length!==2)return null;const a=c[2],b=c[1],D=b*b-4*a*(c[0]-y);if(!Number.isInteger(D)||D<=0||Number.isInteger(Math.sqrt(D)))return null;
+  let s=1,m=D;for(let i=2;i*i<=m;i++)while(m%(i*i)===0){m/=i*i;s*=i}const u=-b/(2*a);if(Math.abs(u)<1e-12)return null;const w=Math.abs(s/(2*a)),wt=Math.abs(w-1)<1e-12?'':num(w);
+  return`x = ${Math.abs(u)>1e-12?num(snap(u,1e-9))+' ':''}± ${wt}${rt(String(m))} (≈ ${decStr(R[0],2)} и ${decStr(R[1],2)})`}
+function pm(R,fn,y){const q=fn&&quadExact(fn,y,R);if(q)return q;return R.length===2&&Math.abs(R[0]+R[1])<1e-9&&R[1]>0?'x = ±'+AN(R[1]):R.map((x,i)=>`x${R.length>1?['₁','₂','₃','₄','₅','₆'][i]||'':''} = ${AN(x)}`).join(', ')}
+function doFind(){try{const fn=fns[sel],v=evalConst(PV.value);marks=[];delete marks.hline;let h;
+  if(given==='x'){const x=v,y=fn.f(x);
+    if(!isFinite(y))h=`<span class="bad">При x = ${S(x)} функция не определена</span> — эта точка не входит в область определения (деление на 0 или корень из отрицательного).`;
+    else{const ys=snap(y,1e-9);marks.push({x,y:ys});const ch=chainFor(fn,x);h=`<b>Подставляем</b> x = ${S(x)} в формулу:<span class="formula">y = ${subst(fn.expr,x)}</span><span class="formula">y = ${ch.html}</span>На рисунке: от x = ${S(x)} поднимись вертикально до графика, затем иди влево к оси Oy.${ans(`(${AN(x)}; ${AN(ys)})`)}`}}
+  else{const y=v,g=x=>fn.f(x)-y,R=findRoots(g).roots.map(r=>refine(g,r));marks.hline=y;R.forEach(x=>marks.push({x,y}));
+    h=R.length?`<b>Решаем уравнение</b> f(x) = ${S(y)}:<span class="formula">${pretty(fn.expr)} = ${S(y)}</span>На рисунке: проведи горизонталь y = ${S(y)} — в точках пересечения с графиком и лежат ответы.${ans(pm(R,fn,y))}`:`На графике нет точек с y = ${S(y)}: горизонталь y = ${S(y)} его не пересекает.`}
+  $('#pout').innerHTML=h;build()}catch(e){$('#pout').innerHTML=`<span class="bad">${e.message}</span>`}}
+$('#bF').onclick=doFind;
+$('#bC').onclick=()=>{marks=[];$('#pout').innerHTML='';build()};
+const tt=document.createElement('div');tt.className='ttip';tt.hidden=true;document.body.appendChild(tt);let hlCol=null;
+const clearHl=()=>{document.querySelectorAll('td.colhl').forEach(c=>c.classList.remove('colhl'));tt.hidden=true;hlCol=null};
+$('#cards').addEventListener('mouseover',e=>{const td=e.target.closest&&e.target.closest('td[data-ti]');if(!td||td.dataset.col===hlCol)return;clearHl();hlCol=td.dataset.col;document.querySelectorAll(`td[data-col="${hlCol}"]`).forEach(c=>c.classList.add('colhl'));
+  tt.innerHTML=tipStore[+td.dataset.ti];tt.hidden=false;const r=td.getBoundingClientRect(),w=tt.offsetWidth;tt.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left+r.width/2-w/2))+'px';tt.style.top=(r.bottom+8)+'px'});
+$('#cards').addEventListener('mouseout',e=>{const n=e.relatedTarget;if(!n||!n.closest||!n.closest('td[data-ti]'))clearHl()});
+$('#go').onclick=()=>{marks=[];$('#pout').innerHTML='';build()};$('#clr').onclick=()=>{LIST.set(['']);fns=[];marks=[];plot.set([]);put(cardsIn,'');$('#finder').hidden=true};
+$('#oSpec').onchange=$('#oTab').onchange=build;
+LIST.set(['y = x² − 4x + 3']);build();
+</script></body></html>

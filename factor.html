@@ -1,0 +1,155 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Разложение на множители</title><link rel="stylesheet" href="shared.css"><script src="shell.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathlive"></script><script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.js"></script><script src="lib.js"></script></head><body><div class="wrap">
+<h1>Разложение на множители</h1><div class="sub">Вынесение общего множителя, формулы сокращённого умножения, группировка, квадратный трёхчлен, подбор корня — с пошаговым решением</div>
+<div class="card"><div id="inp"></div><div id="kb"></div><div class="row"><button class="btn" id="go">Разложить</button><button class="btn g" id="clr">Очистить</button><label><input type="checkbox" id="adv">расширенный режим (не входит в 9 класс)</label></div><div id="ex"></div><div class="err" id="err"></div></div>
+<div id="out"></div>
+<details class="card ref"><summary>Справочник: формулы и приёмы</summary><table id="ref"></table></details></div>
+<script>
+/* ===== рациональные числа и многочлены от нескольких переменных ===== */
+const Fr={mk:(n,d=1)=>{if(d<0){n=-n;d=-d}const g=gcd(n,d)||1;return[n/g,d/g]},add:(a,b)=>Fr.mk(a[0]*b[1]+b[0]*a[1],a[1]*b[1]),mul:(a,b)=>Fr.mk(a[0]*b[0],a[1]*b[1]),neg:a=>[-a[0],a[1]],inv:a=>Fr.mk(a[1],a[0]),z:a=>a[0]===0,eq:(a,b)=>a[0]===b[0]&&a[1]===b[1]};
+const key=e=>Object.keys(e).filter(v=>e[v]).sort().map(v=>v+e[v]).join('');
+const cl=e=>{const r={};for(const v in e)if(e[v])r[v]=e[v];return r};
+const P={
+ const:c=>{const m=new Map();if(!Fr.z(c))m.set('',{c,e:{}});return m},
+ add(a,b){const m=new Map();for(const[k,t]of a)m.set(k,{c:t.c,e:{...t.e}});for(const[k,t]of b){const u=m.get(k);if(u){u.c=Fr.add(u.c,t.c);if(Fr.z(u.c))m.delete(k)}else m.set(k,{c:t.c,e:{...t.e}})}return m},
+ neg(a){const m=new Map();for(const[k,t]of a)m.set(k,{c:Fr.neg(t.c),e:{...t.e}});return m},
+ mul(a,b){let m=new Map();for(const x of a.values())for(const y of b.values()){const e={...x.e};for(const v in y.e)e[v]=(e[v]||0)+y.e[v];m=P.add(m,new Map([[key(e),{c:Fr.mul(x.c,y.c),e}]]))}return m},
+ pow(a,n){let r=P.const([1,1]);for(let i=0;i<n;i++)r=P.mul(r,a);return r},
+ eq(a,b){if(a.size!==b.size)return false;for(const[k,t]of a){const u=b.get(k);if(!u||!Fr.eq(t.c,u.c))return false}return true},
+ vars(a){const s=new Set();for(const t of a.values())for(const v in t.e)s.add(v);return[...s].sort()},
+ deg(a,v){let d=0;for(const t of a.values())d=Math.max(d,t.e[v]||0);return d},
+ td:t=>Object.values(t.e).reduce((x,y)=>x+y,0),
+ list(a){return[...a.values()].sort((p,q)=>{const d=P.td(q)-P.td(p);if(d)return d;for(const v of'abcdefghijklmnopqrstuvwxyz'){const x=(q.e[v]||0)-(p.e[v]||0);if(x)return x}return 0})},
+ sub:(L,idx)=>{let m=new Map();idx.forEach(i=>m=P.add(m,new Map([[key(L[i].e),L[i]]])));return m}};
+const monoP=(c,e)=>new Map(Fr.z(c)?[]:[[key(e),{c,e:cl(e)}]]);
+const ckey=p=>P.list(p).map(t=>t.c+'|'+key(t.e)).join(';');
+function fromAST(n){switch(n.type){
+ case'ConstantNode':{const m=String(n.value).match(/^(\d+)(?:\.(\d+))?$/);if(!m)throw 0;return P.const(Fr.mk(+(m[1]+(m[2]||'')),m[2]?10**m[2].length:1))}
+ case'SymbolNode':if(n.name.length>1)throw new Error('Неизвестное обозначение «'+n.name+'»');return new Map([[n.name+'1',{c:[1,1],e:{[n.name]:1}}]]);
+ case'ParenthesisNode':return fromAST(n.content);
+ case'OperatorNode':{const a=n.args.map(fromAST);switch(n.fn){case'add':return P.add(a[0],a[1]);case'subtract':return P.add(a[0],P.neg(a[1]));case'multiply':return P.mul(a[0],a[1]);case'unaryMinus':return P.neg(a[0]);case'unaryPlus':return a[0];
+  case'divide':{const t=[...a[1].values()];if(t.length!==1||Object.keys(t[0].e).length)throw new Error('Деление на выражение с переменной не поддерживается — нужен многочлен');return P.mul(a[0],P.const(Fr.inv(t[0].c)))}
+  case'pow':{const t=[...a[1].values()],q=t.length?t[0].c:[0,1];if(t.length>1||(t[0]&&Object.keys(t[0].e).length)||q[1]!==1||q[0]<0||q[0]>12)throw new Error('Степень должна быть целым числом от 0 до 12');return P.pow(a[0],q[0])}}}}
+ throw new Error('Не понял выражение — нужен многочлен')}
+/* ===== вывод ===== */
+const vsup=n=>n===1?'':`<sup>${n}</sup>`;
+const monoH=e=>Object.keys(e).filter(v=>e[v]).sort().map(v=>v+vsup(e[v])).join('');
+const cH=ab=>ab[1]===1?String(ab[0]):frHTML(ab[0],ab[1]);
+function polyH(a){return polyHL(P.list(a))}
+function polyHL(L){if(!L.length)return'0';let s='';L.forEach((t,i)=>{const ab=[Math.abs(t.c[0]),t.c[1]],m=monoH(t.e);s+=t.c[0]<0?(i?' − ':'−'):(i?' + ':'');s+=(ab[0]===1&&ab[1]===1&&m)?m:cH(ab)+m});return s}
+const par=p=>p.size>1?`(${polyH(p)})`:polyH(p);
+function prodH(F){const g=[];for(const f of F){const k=f.html||ckey(f.p),o=g.find(x=>x.k===k);if(o)o.n++;else g.push({k,f,n:1})}
+  const w=f=>f.html||(f.p.size===1?polyH(f.p):`(${polyH(f.p)})`);
+  const arr=g.filter(x=>!(x.f.p&&x.f.p.size===1&&!Object.keys([...x.f.p.values()][0].e).length&&[...x.f.p.values()][0].c[0]===1&&[...x.f.p.values()][0].c[1]===1));
+  return arr.map(({f,n})=>{if(f.p&&f.p.size===1&&!f.html&&Object.keys([...f.p.values()][0].e).length===0&&[...f.p.values()][0].c[0]===-1&&n===1)return'−';const h=w(f);return n>1?(f.p&&f.p.size===1&&!f.html?`(${h})`:h)+`<sup>${n}</sup>`:h}).join('')||'1'}
+/* ===== вспомогательное ===== */
+const isq=n=>{const r=Math.round(Math.sqrt(n));return r*r===n?r:null},icb=n=>{const r=Math.round(Math.cbrt(Math.abs(n)));return r**3===Math.abs(n)?Math.sign(n)*r:null};
+function rootTerm(t,k){let c;if(k===2){if(t.c[0]<=0)return null;const a=isq(t.c[0]),b=isq(t.c[1]);if(a==null||b==null)return null;c=Fr.mk(a,b)}else{const a=icb(t.c[0]),b=icb(t.c[1]);if(a==null||b==null)return null;c=Fr.mk(a,b)}
+  const e={};for(const v in t.e){if(t.e[v]%k)return null;e[v]=t.e[v]/k}return monoP(c,e)}
+function content(a){const L=P.list(a);let nu=0,de=1;for(const t of L){nu=gcd(nu,t.c[0]);de=de*t.c[1]/gcd(de,t.c[1])}const mono={};for(const v of P.vars(a)){let m=1e9;for(const t of L)m=Math.min(m,t.e[v]||0);if(m>0)mono[v]=m}return{c:Fr.mk(nu,de),mono}}
+function divMono(a,c,mono){const m=new Map();for(const t of a.values()){const e={...t.e};for(const v in mono)e[v]-=mono[v];const k=cl(e);m.set(key(k),{c:Fr.mul(t.c,Fr.inv(c)),e:k})}return m}
+const lead=a=>P.list(a)[0];
+function divisors(n){n=Math.abs(n);const r=[];for(let i=1;i*i<=n;i++)if(n%i===0){r.push(i);if(i*i!==n)r.push(n/i)}return r.sort((a,b)=>a-b)}
+function uni(a){const v=P.vars(a)[0],d=P.deg(a,v),c=Array.from({length:d+1},()=>[0,1]);for(const t of a.values())c[t.e[v]||0]=t.c;return{v,c}}
+const fromUni=(v,c)=>{let m=new Map();c.forEach((k,i)=>{if(!Fr.z(k))m=P.add(m,monoP(k,i?{[v]:i}:{}))});return m};
+const evalU=(c,r)=>c.reduceRight((s,k)=>Fr.add(Fr.mul(s,r),k),[0,1]);
+const lin=(d,v,n,w)=>P.add(monoP([d,1],{[v]:1}),w?monoP([-n,1],{[w]:1}):P.const([-n,1])); // d·v − n·w
+const sqrtSimp=D=>{let s=1,m=D;for(let i=2;i*i<=m;i++)while(m%(i*i)===0){m/=i*i;s*=i}return[s,m]};
+/* ===== способы ===== */
+const sn=x=>String(x).replace('-','−');
+function facH(c,mono){const m=monoH(mono),a=[Math.abs(c[0]),c[1]],one=a[0]===1&&a[1]===1;return(one&&!m)?(c[0]<0?'−':''):(c[0]<0?'−':'')+((one&&m)?'':cH(a))+m}
+function mCommon(f){const p=f.p,ct=content(p),L=P.list(p),neg=f.top&&L[0].c[0]<0,hasMono=Object.keys(ct.mono).length>0,hasC=!(ct.c[0]===1&&ct.c[1]===1);
+  if(!hasMono&&!hasC&&!neg)return null;const c=neg?Fr.neg(ct.c):ct.c,Q=divMono(p,c,ct.mono),why=[];
+  if(hasC)why.push(`Наибольший общий делитель коэффициентов — ${cH(ct.c)}.`);
+  if(hasMono)why.push(`Во всех слагаемых есть ${monoH(ct.mono)} (берём наименьшую степень).`);
+  if(neg)why.push('Первое слагаемое отрицательное, поэтому выносим ещё и «−»: так в скобках первое слагаемое будет положительным.');
+  return{t:'Выносим общий множитель за скобки',b:why.join(' ')+`<br>Делим каждое слагаемое на общий множитель и записываем результат:`,parts:[{p:monoP(c,ct.mono),done:true},{p:Q}]}}
+function mTwo(f){const p=f.p;if(p.size!==2)return null;const[t1,t2]=P.list(p),ps=[t1,t2].find(t=>t.c[0]>0),ng=[t1,t2].find(t=>t.c[0]<0);
+  if(ps&&ng){const a=rootTerm(ps,2),b=rootTerm({c:Fr.neg(ng.c),e:ng.e},2);if(a&&b)return{t:'Формула разности квадратов',b:`a² − b² = (a − b)(a + b)<br>${polyH(P.sub([ps],[0]))} = (${polyH(a)})², ${polyH(P.neg(P.sub([ng],[0])))} = (${polyH(b)})², значит a = <b>${polyH(a)}</b>, b = <b>${polyH(b)}</b>.`,parts:[{p:P.add(a,P.neg(b))},{p:P.add(a,b)}]}}
+  const a=rootTerm(t1,3),b=rootTerm(t2,3);if(a&&b){const nb=lead(b).c[0]<0,B=nb?P.neg(b):b,A=a,A2=P.mul(A,A),B2=P.mul(B,B),AB=P.mul(A,B);
+    return{t:nb?'Формула разности кубов':'Формула суммы кубов',b:nb?`a³ − b³ = (a − b)(a² + ab + b²)<br>Здесь a = <b>${polyH(A)}</b>, b = <b>${polyH(B)}</b>.`:`a³ + b³ = (a + b)(a² − ab + b²)<br>Здесь a = <b>${polyH(A)}</b>, b = <b>${polyH(B)}</b>.`,
+      parts:[{p:nb?P.add(A,P.neg(B)):P.add(A,B)},{p:nb?P.add(P.add(A2,AB),B2):P.add(P.add(A2,P.neg(AB)),B2)}]}}return null}
+function mSquare(f){const p=f.p;if(p.size!==3)return null;const L=P.list(p);for(const[i,j]of[[0,1],[0,2],[1,2]]){const a=rootTerm(L[i],2),b=rootTerm(L[j],2);if(a&&b)for(const s of[1,-1]){const q=P.add(a,s>0?b:P.neg(b));if(P.eq(P.mul(q,q),p))
+  return{t:s>0?'Формула квадрата суммы':'Формула квадрата разности',b:s>0?`a² + 2ab + b² = (a + b)²<br>a = <b>${polyH(a)}</b>, b = <b>${polyH(b)}</b>; проверяем среднее слагаемое: 2ab = ${polyH(P.mul(P.const([2,1]),P.mul(a,b)))} ✓`:`a² − 2ab + b² = (a − b)²<br>a = <b>${polyH(a)}</b>, b = <b>${polyH(b)}</b>; проверяем среднее слагаемое: 2ab = ${polyH(P.mul(P.const([2,1]),P.mul(a,b)))} ✓`,parts:[{p:q},{p:q}]}}}return null}
+function mCube(f){const p=f.p;if(p.size!==4)return null;const L=P.list(p);for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){const a=rootTerm(L[i],3),b=rootTerm(L[j],3);if(a&&b){const q=P.add(a,b);if(P.eq(P.pow(q,3),p)){const nb=lead(b).c[0]<0;
+  return{t:nb?'Формула куба разности':'Формула куба суммы',b:nb?`(a − b)³ = a³ − 3a²b + 3ab² − b³<br>a = <b>${polyH(a)}</b>, b = <b>${polyH(P.neg(b))}</b>`:`(a + b)³ = a³ + 3a²b + 3ab² + b³<br>a = <b>${polyH(a)}</b>, b = <b>${polyH(b)}</b>`,parts:[{p:q},{p:q},{p:q}]}}}}return null}
+function pairsOf(C){const r=[],a=Math.abs(C);for(let d=1;d*d<=a;d++)if(a%d===0){const e=a/d;if(C>0){r.push([d,e]);r.push([-d,-e])}else{r.push([-d,e]);if(d!==e)r.push([d,-e])}}return r}
+function mQuad(f){const p=f.p,vs=P.vars(p);let u,w=null;
+  if(vs.length===1&&P.deg(p,vs[0])===2)u=vs[0];else if(vs.length===2&&[...p.values()].every(t=>P.td(t)===2)){u=vs.find(v=>P.deg(p,v)===2);w=vs.find(v=>v!==u);if(!u)return null}else return null;
+  let A=0,B=0,C=0;for(const t of p.values()){const du=t.e[u]||0;if(t.c[1]!==1)return null;(du===2?A=t.c[0]:du===1?B=t.c[0]:C=t.c[0])}
+  if(!A)return null;
+  const ttl=w?`Трёхчлен с двумя переменными (${w} считаем числом, раскладываем как квадратный относительно ${u})`:'Квадратный трёхчлен',rp=q=>w?monoP(q,{[w]:1}):P.const(q),rf=q=>P.add(monoP([1,1],{[u]:1}),P.neg(rp(q))),mk=q=>lin(q[1],u,q[0],w);
+  if(A===1&&C!==0){const prs=pairsOf(C),hit=prs.find(([a,b])=>a+b===-B);
+    if(hit){const[x1,x2]=[...hit].sort((a,b)=>a-b),rows=prs.map(([a,b])=>`${sn(a)} и ${sn(b)}: сумма ${sn(a+b)}${a+b===-B?' — <b>подходит ✓</b>':''}`).join('<br>'),W=w||'';
+      return{t:ttl+': теорема Виета',b:`Если x₁ и x₂ — корни трёхчлена x² + bx + c, то x₁ + x₂ = −b, а x₁·x₂ = c.<br>Нужны два числа, у которых произведение ${sn(C)}, а сумма ${sn(-B)}${W?` (это числа, стоящие перед ${W} в корнях)`:''}.<br>Перебираем пары множителей числа ${sn(C)}:<br>${rows}<br>Значит корни: x₁ = ${polyH(rp([x1,1]))}, x₂ = ${polyH(rp([x2,1]))}, и трёхчлен равен (${u} − x₁)(${u} − x₂).`,parts:[{p:rf([x1,1])},{p:rf([x2,1])}]}}}
+  const D=B*B-4*A*C,Dh=`D = b² − 4ac = ${B<0?`(${sn(B)})`:B}² − 4·${A}·${C<0?`(${sn(C)})`:C} = ${sn(D)}`,
+    pre=A===1?'Подобрать целые числа по теореме Виета не получилось — считаем дискриминант.':'Здесь a ≠ 1, теорема Виета напрямую не подходит — находим корни по формулам через дискриминант.';
+  if(D<0)return{t:ttl+': дискриминант',b:`${pre}<br>${Dh} < 0 — корней нет, поэтому трёхчлен <b>не раскладывается</b> на множители.`,parts:[{p,done:true,irr:true}]};
+  const r=isq(D);
+  if(r!==null){const x1=Fr.mk(-B-r,2*A),x2=Fr.mk(-B+r,2*A),d1=x1[1],d2=x2[1],k=A/(d1*d2),pr=[],val=q=>w?polyH(rp(q)):num(q[0]/q[1]);
+    if(k!==1)pr.push({p:P.const([k,1]),done:true});pr.push({p:mk(x1)},{p:mk(x2)});
+    const form=`${A===1?'':A}(${polyH(rf(x1))})${D===0?'²':`(${polyH(rf(x2))})`}`,dn=[[x1,d1],...(D?[[x2,d2]]:[])].filter(([q,d])=>d>1);
+    const den=dn.length?`<br>Чтобы убрать дроби, число a = ${A} «заносим» в скобки: ${dn.map(([q,d])=>`${d}(${polyH(rf(q))}) = ${polyH(mk(q))}`).join(', ')}.`:'';
+    return{t:ttl+': дискриминант',b:`${pre}<br>${Dh} ${D===0?'= 0 — один корень':'> 0 — два корня'}.<br>x₁ = ${frHTML('−b − '+rt('D'),'2a')} = ${val(x1)}${D?`, x₂ = ${frHTML('−b + '+rt('D'),'2a')} = ${val(x2)}`:''}.<br>Раскладываем по формуле ax² + bx + c = a(x − x₁)(x − x₂):<br>${polyH(p)} = ${form}${den}`,parts:pr}}
+  const[s,m]=sqrtSimp(D),u0=Fr.mk(-B,2*A),w0=Fr.mk(s,2*A),rad=sg=>`(${u} ${u0[0]?(u0[0]>0?'− ':'+ ')+cH([Math.abs(u0[0]),u0[1]]):''} ${sg} ${w0[0]/w0[1]===1?'':cH(w0)}${rt(String(m))})`.replace(/\s+/g,' ').replace('( ','(');
+  return{t:ttl+': дискриминант',b:`${pre}<br>${Dh} > 0, но √D = ${s>1?s:''}${rt(String(m))} — не целое число, значит корни иррациональные: x = ${frHTML('−b ± '+rt('D'),'2a')} = ${num(-B/(2*A))} ± ${w0[0]/w0[1]===1?'':cH(w0)}${rt(String(m))}.<br>Раскладываем по формуле a(x − x₁)(x − x₂):`,parts:[...(A!==1?[{p:P.const([A,1]),done:true}]:[]),{html:rad('−'),done:true},{html:rad('+'),done:true}]}}
+function mGroup(f){const p=f.p,L=P.list(p),n=L.length;if(n<4||n>6)return null;const comb=(arr,k)=>k===0?[[]]:arr.flatMap((x,i)=>comb(arr.slice(i+1),k-1).map(c=>[x,...c])),parts=[];
+  (function gen(rem,cur){if(!rem.length){parts.push(cur);return}const[a,...rest]=rem;for(const k of[1,2])for(const c of comb(rest,k))gen(rest.filter(x=>!c.includes(x)),[...cur,[a,...c]])})([...Array(n).keys()],[]);
+  const sc=g=>g.reduce((s,gr)=>s+gr.slice(1).reduce((q,x,i)=>q+(x-gr[i]-1),0),0);parts.sort((a,b)=>sc(a)-sc(b));
+  for(const part of parts){if(part.length<2)continue;const G=part.map(gr=>{const sp=P.sub(L,gr),ct=content(sp);let g=monoP(ct.c,ct.mono),Q=divMono(sp,ct.c,ct.mono);if(lead(Q).c[0]<0){g=P.neg(g);Q=P.neg(Q)}return{sp,g,Q}});
+    if(G.some(x=>!P.eq(x.Q,G[0].Q))||G[0].Q.size<2)continue;let S=new Map();G.forEach(x=>S=P.add(S,x.g));if(S.size<2&&Object.keys(lead(S)?.e||{}).length===0)continue;
+    return{t:'Способ группировки',b:`Группируем слагаемые: ${G.map(x=>`(${polyH(x.sp)})`).join(' + ')}<br>В каждой группе выносим общий множитель: ${G.map(x=>`${par(x.g)}·(${polyH(x.Q)})`).join(' + ')}<br>Теперь у всех групп одинаковая скобка (${polyH(G[0].Q)}) — выносим её: (${polyH(G[0].Q)})·(${polyH(S)}).`,parts:[{p:G[0].Q},{p:S}]}}return null}
+function mRoot(f){const p=f.p;if(P.vars(p).length!==1||P.deg(p,P.vars(p)[0])<3)return null;const{v,c}=uni(p),n=c.length-1,a0=Math.abs(c[0][0]),an=Math.abs(c[n][0]);if(c.some(k=>k[1]!==1)||!a0)return null;
+  const cand=[];for(const q of divisors(an))for(const pp of divisors(a0))for(const s of[1,-1]){const r=Fr.mk(s*pp,q);if(!cand.some(x=>Fr.eq(x,r)))cand.push(r)}
+  const tried=[];for(const r of cand){const val=evalU(c,r);tried.push(`${v} = ${num(r[0]/r[1])}: ${Fr.z(val)?'<b>= 0 ✓</b>':'≠ 0'}`);if(Fr.z(val)){
+    const qc=Array(n).fill(0);let carry=[0,1];for(let i=n;i>=1;i--){carry=Fr.add(c[i],Fr.mul(carry,r));qc[i-1]=carry}const qr=qc.map(k=>Fr.mul(k,[1,r[1]])),Q=fromUni(v,qr);
+    return{t:'Подбор корня и деление многочлена',b:`Целые корни ищем среди делителей свободного члена ${c[0][0]}; дробные — вида (делитель свободного члена) / (делитель старшего коэффициента). Пробуем:<br>${tried.slice(0,8).join('; ')}<br>Значит ${v} = ${num(r[0]/r[1])} — корень, и многочлен делится на (${polyH(lin(r[1],v,r[0]))}). Делим (по схеме Горнера или уголком): частное = <b>${polyH(Q)}</b>.`,parts:[{p:lin(r[1],v,r[0])},{p:Q}]}}}return null}
+function mBiquad(f){const p=f.p,vs=P.vars(p);if(vs.length!==1||p.size!==3)return null;const v=vs[0];let A=0,B=0,C=0;for(const t of p.values()){const d=t.e[v]||0;if(t.c[1]!==1)return null;if(d===4)A=t.c[0];else if(d===2)B=t.c[0];else if(d===0)C=t.c[0];else return null}
+  if(!A||!B||!C)return null;const D=B*B-4*A*C,r=isq(D);if(r===null)return null;const t1=Fr.mk(-B-r,2*A),t2=Fr.mk(-B+r,2*A),m=q=>P.add(monoP([q[1],1],{[v]:2}),P.const([-q[0],1])),k=A/(t1[1]*t2[1]);
+  return{t:`Биквадратный трёхчлен: замена t = ${v}²`,b:`Пусть t = ${v}², тогда ${polyH(monoP([A,1],{t:2}))}${B<0?' − ':' + '}${Math.abs(B)}t${C<0?' − ':' + '}${Math.abs(C)}. D = ${D}, t₁ = ${num(t1[0]/t1[1])}, t₂ = ${num(t2[0]/t2[1])}.<br>Раскладываем: a(t − t₁)(t − t₂), затем возвращаем t = ${v}²:`,parts:[...(k!==1?[{p:P.const([k,1]),done:true}]:[]),{p:m(t1)},{p:m(t2)}]}}
+function mGroup2(f){const p=f.p,L=P.list(p),n=L.length;if(n<4||n>6)return null;const comb=(arr,k)=>k===0?[[]]:arr.flatMap((x,i)=>comb(arr.slice(i+1),k-1).map(c=>[x,...c])),parts=[];
+  (function gen(rem,cur){if(!rem.length){parts.push(cur);return}const[a,...rest]=rem;for(const k of[1,2])for(const c of comb(rest,k))gen(rest.filter(x=>!c.includes(x)),[...cur,[a,...c]])})([...Array(n).keys()],[]);
+  for(const part of parts){if(part.length<2)continue;const G=part.map(gr=>{const sp=P.sub(L,gr),r=factorize(sp,[]).F;return{sp,F:r}});if(G.some(g=>g.F.some(x=>!x.p)))continue;
+    const cand=G[0].F.filter(x=>x.p.size>1||P.vars(x.p).length);for(const c of cand){if(c.p.size===1)continue;const k=ckey(c.p);if(!G.every(g=>g.F.some(x=>ckey(x.p)===k)))continue;
+      let S=new Map();for(const g of G){let used=false,rest=P.const([1,1]);for(const x of g.F){if(!used&&ckey(x.p)===k){used=true;continue}rest=P.mul(rest,x.p)}S=P.add(S,rest)}
+      if(S.size<1||!P.vars(S).length)continue;return{t:'Группировка + формулы сокращённого умножения',b:`Группируем: ${G.map(g=>`(${polyH(g.sp)})`).join(' + ')}<br>Раскладываем каждую группу: ${G.map(g=>prodH(g.F)).join(' + ')}<br>Во всех группах есть общий множитель (${polyH(c.p)}) — выносим его: (${polyH(c.p)})·(${polyH(S)}).`,parts:[{p:c.p},{p:S}]}}}return null}
+let ADV=false;
+const methods=()=>ADV?[mCommon,mTwo,mSquare,mCube,mGroup,mGroup2,mQuad,mBiquad,mRoot]:[mCommon,mTwo,mSquare,mGroup,mGroup2,mQuad,mBiquad];
+function factorize(P0,pre,initF,start){const F=initF||[{p:P0,top:true}],steps=[...pre];let g=0,first=true;
+  while(g++<60){const i=F.findIndex(f=>!f.done);if(i<0)break;const f=F[i];if(!f.p||f.p.size<=1||!P.vars(f.p).length){f.done=true;continue}
+    let r=null;for(const m of methods()){r=m(f);if(r)break}
+    if(!r){f.done=true;f.stuck=true;continue}F.splice(i,1,...r.parts.map(x=>({...x,top:false})));
+    steps.push({t:r.t,b:r.b+((r.parts.length===1&&r.parts[0].irr)?'':`<span class="formula">${first&&start?start+' = ':'= '}${prodH(F)}</span>`)});first=false}
+  return{steps,F}}
+function flatP(n){while(n.type==='ParenthesisNode')n=n.content;
+  if(n.type==='OperatorNode'&&n.fn==='multiply')return[...flatP(n.args[0]),...flatP(n.args[1])];
+  if(n.type==='OperatorNode'&&n.fn==='unaryMinus')return[P.const([-1,1]),...flatP(n.args[0])];
+  if(n.type==='OperatorNode'&&n.fn==='pow'){let b=n.args[0],e=n.args[1];while(b.type==='ParenthesisNode')b=b.content;while(e.type==='ParenthesisNode')e=e.content;
+    if(e.type==='ConstantNode'&&+e.value>=2&&+e.value<=6&&Number.isInteger(+e.value)&&b.type==='OperatorNode'&&(b.fn==='add'||b.fn==='subtract'))return Array(+e.value).fill(0).flatMap(()=>flatP(b))}
+  return[fromAST(n)]}
+function rawSum(A,B){const L=[];for(const x of P.list(A))for(const y of P.list(B)){const e={...x.e};for(const v in y.e)e[v]=(e[v]||0)+y.e[v];L.push({c:Fr.mul(x.c,y.c),e})}return polyHL(L)}
+function checkStep(F,orig){if(F.some(f=>!f.p))return null;let prod=P.const([1,1]);F.forEach(f=>prod=P.mul(prod,f.p));if(!P.eq(prod,orig))return null;
+  const nc=F.filter(f=>P.vars(f.p).length),cs=F.filter(f=>!P.vars(f.p).length).reduce((m,f)=>P.mul(m,f.p),P.const([1,1])),cst=[...cs.values()][0],cf=cst&&!(cst.c[0]===1&&cst.c[1]===1)?facH(cst.c,{}):'',ch=[prodH(F)];
+  if(nc.length===2){const raw=rawSum(nc[0].p,nc[1].p),comb=polyH(P.mul(nc[0].p,nc[1].p));ch.push(cf?`${cf}(${raw})`:raw);if(raw!==comb)ch.push(cf?`${cf}(${comb})`:comb);if(cf)ch.push(polyH(prod))}
+  else ch.push(polyH(prod));
+  return{t:'Проверка',b:`Раскроем скобки и приведём подобные слагаемые — должен получиться исходный многочлен:<span class="formula">${[...new Set(ch)].join(' = ')}</span>Получили ${polyH(orig)} — совпадает с исходным ✓`}}
+/* ===== интерфейс ===== */
+const mi=MI($('#inp'),{placeholder:'Введи многочлен, например x² − 10x + 9',onEnter:()=>run()}),out=mount('out');
+kbInit($('#kb'),['plus','minus','mul','div','frac','sq','pow','lp','rp','x','y','a','b']);
+chipsInit($('#ex'),['x² − 10x + 9','x² + 2x − 15','2x² − 5x + 2','3y² + 36y + 60','3a² − 75','x⁴ − 16','a³ + 8','27x³ − 1','4x² + 12x + 9','x² − 2xy + y²','x³ − 2x² − 4x + 8','ax + ay + bx + by','a² − b² + a + b','x² + 5xy + 6y²','x² − 2x − 1','x² + x + 1','x⁴ − 5x² + 4','(x − 1)(x − 9)'],t=>{mi.set(t);run()});
+function run(){$('#err').textContent='';ADV=$('#adv').checked;const src=mi.value;if(!src.trim()){put(out,'');return}let p,node,fl;
+  try{node=math.parse(normExpr(src));p=fromAST(node);fl=flatP(node)}catch(e){$('#err').textContent=(e&&e.message)||'Не получилось разобрать выражение';return}
+  if(!p.size){put(out,stepsHTML([{t:'Результат',b:'Выражение равно 0.'}]));return}
+  const isProd=fl.length>=2&&fl.filter(q=>P.vars(q).length).length>=2&&fl.some(q=>q.size>1);let steps,F,start,pre=[],init=null;
+  if(isProd){init=fl.map(q=>({p:q,done:q.size<=1}));start=prodH(init);pre=[{t:'Исходное выражение',b:`Оно уже записано как произведение — проверим, нельзя ли разложить каждый множитель:<span class="formula">${start}</span>`}]}
+  else{start=polyH(p);if(/\(/.test(src))pre=[{t:'Раскрываем скобки',b:`Раскрываем скобки и приводим подобные слагаемые:<span class="formula">${start}</span>`}]}
+  ({steps,F}=factorize(p,pre,init,start));const changed=steps.length>pre.length,res=prodH(F);let ans;
+  if(isProd&&!changed)ans=`${start} — уже разложено на множители, дальше не раскладывается`;
+  else if(!changed){const m=P.vars(p);const hint=!ADV&&m.length===1&&P.deg(p,m[0])>=3?' Для многочленов 3-й и 4-й степени есть подбор корня — он включается в расширенном режиме.':'';
+    steps.push({t:'Вывод',b:`Нет общего множителя, не подходит ни одна формула сокращённого умножения, группировка и квадратный трёхчлен.${hint}`});ans=`${polyH(p)} — не раскладывается`}
+  else if(F.length===1&&!isProd&&P.eq(F[0].p,p)){ans=`${polyH(p)} — не раскладывается над действительными числами, потому что D < 0`}
+  else{const ck=isProd?null:checkStep(F,p);if(ck)steps.push(ck);ans=`${isProd?start:polyH(p)} = ${res}`}
+  put(out,stepsHTML(steps,ans))}
+$('#go').onclick=run;$('#adv').onchange=run;mi.set('x² − 10x + 9');run();$('#clr').onclick=()=>{mi.set('');put(out,'');mi.focus()};
+$('#ref').innerHTML=[['Общий множитель','ab + ac = a(b + c)'],['Разность квадратов','a² − b² = (a − b)(a + b)'],['Квадрат суммы','a² + 2ab + b² = (a + b)²'],['Квадрат разности','a² − 2ab + b² = (a − b)²'],['Сумма кубов','a³ + b³ = (a + b)(a² − ab + b²)'],['Разность кубов','a³ − b³ = (a − b)(a² + ab + b²)'],['Группировка','ax + ay + bx + by = a(x + y) + b(x + y) = (a + b)(x + y)'],['Теорема Виета (a = 1)','x² + bx + c = (x − x₁)(x − x₂), где x₁ + x₂ = −b, x₁·x₂ = c'],['Квадратный трёхчлен','ax² + bx + c = a(x − x₁)(x − x₂), x₁,₂ = (−b ± √D) / 2a'],['Расширенный режим','(a ± b)³; подбор корня многочлена 3–4 степени']].map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td></tr>`).join('');
+</script></body></html>

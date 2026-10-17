@@ -1,0 +1,26 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Прогрессии</title><link rel="stylesheet" href="shared.css"><script src="shell.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathlive"></script><script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.js"></script><script src="lib.js"></script></head><body><div class="wrap">
+<h1>Числовые последовательности</h1><div class="sub">Арифметическая и геометрическая прогрессии: формула n-го члена, сумма первых n членов, поиск номера члена</div>
+<div class="tabs" id="tabs"></div>
+<div class="card"><div class="row" style="margin-top:0"><label id="l1">a₁ =<span id="h1"></span></label><label id="l2">d =<span id="h2"></span></label>
+<label>n =<input type="text" class="sm" id="n" value="10"></label><label id="l3">aₙ =<span id="h3"></span></label><button class="btn" id="go">Посчитать</button></div><div class="small" style="margin-top:8px">Поле «aₙ» необязательно: если заполнить, найдём, каким по счёту членом является это число.</div><div class="err" id="err"></div></div>
+<div id="plot"></div><div class="small" style="margin-bottom:14px">Точки графика последовательности: по оси x — номер члена n, по оси y — его значение.</div><div id="out"></div></div>
+<script>
+let T=0;const pl=new Plot($('#plot')),out=mount('out'),E=()=>$('#err'),A1=MI($('#h1'),{small:true,value:'3'}),D1=MI($('#h2'),{small:true,value:'4'}),AN=MI($('#h3'),{small:true,placeholder:'найти номер'});
+tabsInit($('#tabs'),['Арифметическая','Геометрическая'],i=>{T=i;$('#l2').firstChild.textContent=i?'q =':'d =';A1.set(i?'2':'3');D1.set(i?'3':'4');$('#n').value=i?'6':'10';$('#l1').firstChild.textContent=i?'b₁ =':'a₁ =';$('#l3').firstChild.textContent=i?'bₙ =':'aₙ =';AN.set('');run()});
+function run(){E().textContent='';let a,d,n,x=null;try{a=evalConst(A1.value);d=evalConst(D1.value);n=evalConst($('#n').value);if(AN.value.trim())x=evalConst(AN.value)}catch(e){E().textContent='Введите числа (можно дроби: 1/2)';return}
+  if(!Number.isInteger(n)||n<1||n>60){E().textContent='n — натуральное число от 1 до 60';return}
+  const st=[],L=T?'b':'a',q=d,term=k=>T?a*q**(k-1):a+(k-1)*d,seq=Array.from({length:n},(_,i)=>term(i+1)),an=term(n);
+  if(!T){st.push({t:'Формула n-го члена',b:`aₙ = a₁ + (n − 1)·d<span class="formula">a${n>1?'ₙ':'₁'} = ${num(a)} + (${n} − 1)·${num(d)} = <b>${num(an)}</b></span>`});
+    st.push({t:'Сумма первых n членов',b:`Sₙ = ${frHTML('(a₁ + aₙ)·n','2')}<span class="formula">S${n} = ${frHTML('('+num(a)+' + '+num(an)+')·'+n,'2')} = <b>${num(snap(seq.reduce((s,v)=>s+v,0)))}</b></span>или Sₙ = ${frHTML('(2a₁ + (n − 1)d)·n','2')} — даст то же самое.`})}
+  else{st.push({t:'Формула n-го члена',b:`bₙ = b₁·qⁿ⁻¹<span class="formula">b${n} = ${num(a)}·${num(q)}<sup>${n-1}</sup> = <b>${num(snap(an,1e-7))}</b></span>`});
+    const S=q===1?a*n:a*(q**n-1)/(q-1);st.push({t:'Сумма первых n членов',b:q===1?`q = 1 — все члены равны: S = n·b₁ = ${num(S)}`:`Sₙ = ${frHTML('b₁(qⁿ − 1)','q − 1')}<span class="formula">S${n} = ${frHTML(num(a)+'·('+num(q)+'<sup>'+n+'</sup> − 1)',num(q)+' − 1')} = <b>${num(snap(S,1e-7))}</b></span>`});
+    if(Math.abs(q)<1&&q!==0)st.push({t:'Бесконечная сумма (|q| < 1)',b:`S = ${frHTML('b₁','1 − q')} = ${frHTML(num(a),'1 − '+num(q))} = <b>${num(snap(a/(1-q),1e-7))}</b>`})}
+  if(x!==null){let k=null;if(!T){if(d!==0){k=(x-a)/d+1}}else if(a!==0&&q>0&&q!==1&&x/a>0)k=1+Math.log(x/a)/Math.log(q);
+    st.push({t:`Является ли ${num(x)} членом прогрессии?`,b:k!==null&&Number.isInteger(snap(k,1e-9))&&k>=1?`${T?'n = 1 + log<sub>q</sub>('+frHTML('bₙ','b₁')+')':'n = '+frHTML('aₙ − a₁','d')+' + 1'} → n = <b>${snap(k,1e-9)}</b> — натуральное число, значит ${num(x)} — <b>${snap(k,1e-9)}-й член</b>.`:`n получается ${k!==null?num(snap(k,1e-6)):'не существует'} — не натуральное число, значит ${num(x)} <b>не является</b> членом этой прогрессии.`})}
+  st.push({t:'Первые члены',b:seq.slice(0,12).map(v=>`<span class="chip" style="cursor:default">${num(snap(v,1e-7))}</span>`).join(' ')+(n>12?' …':'')});
+  put(out,stepsHTML(st,`${L}${n===1?'₁':'ₙ'} = ${num(snap(an,1e-7))}`));
+  const P=seq.map((v,i)=>[i+1,v]),m=Math.max(...seq.map(Math.abs));
+  pl.set([...P.map(([i,v],j)=>({type:'pt',x:i,y:v,color:T?'#e0412f':'#2563eb',small:true,label:j<12&&Math.abs(v)<1e6?dec(snap(v,1e-7)):''}))],[[0,0],...P.filter(p=>Math.abs(p[1])<60)])}
+$('#go').onclick=run;
+</script></body></html>
