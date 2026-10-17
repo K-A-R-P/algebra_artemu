@@ -11,6 +11,6 @@ const css=`body{padding:26px 30px 60px 282px!important}.a9side{position:fixed;le
 .a9side .foot{margin-top:auto;font-size:12px;text-align:center;padding-top:12px}
 @media(max-width:760px){body{padding:70px 14px 40px!important}.a9side{width:100%;height:56px;bottom:auto;flex-direction:row;align-items:center;padding:8px;overflow-x:auto;overflow-y:hidden}.a9side .brand,.a9side .grp,.a9side .foot{display:none}.a9side a{white-space:nowrap}}`;
 document.addEventListener('DOMContentLoaded',()=>{const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
-  const n=document.createElement('nav');n.className='a9side';n.innerHTML='<div class="brand">Алгебра<span>9</span></div>'+M.map(m=>m.length===1?`<div class="grp">${m[0]}</div>`:`<a href="${m[0]}.html" class="${m[0]===cur?'on':''}"><span class="ic">${m[1]}</span>${m[2]}</a>`).join('')+'<div class="foot">Помощник по алгебре, 9 класс</div>';
+  const n=document.createElement('nav');n.className='a9side';n.innerHTML='<div class="brand">Алгебра<span>9</span></div>'+M.map(m=>m.length===1?`<div class="grp">${m[0]}</div>`:`<a href="${m[0]}.html" class="${m[0]===cur?'on':''}"><span class="ic">${m[1]}</span>${m[2]}</a>`).join('')+'<div class="foot">Помощник Артему К.</div>';
   document.body.prepend(n)});
 })();
