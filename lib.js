@@ -196,7 +196,7 @@ class Plot{
     lab('0',ax+(ax<36?8:-7),ay+(ay>H-28?-8:16),ax<36?'left':'right');
     // оси-подписи единичного отрезка
     for(const it of this.items){
-      if(it.type==='vline'||it.type==='hline'){k.save();k.strokeStyle=it.color||'#888';k.lineWidth=1.8;k.setLineDash([8,6]);k.globalAlpha=.85;k.beginPath();
+      if(it.type==='vline'||it.type==='hline'){k.save();k.strokeStyle=it.color||'#888';k.lineWidth=it.w||1.8;k.setLineDash(it.dash||[8,6]);k.globalAlpha=.85;k.beginPath();
         if(it.type==='vline'){k.moveTo(X(it.x),0);k.lineTo(X(it.x),H)}else{k.moveTo(0,Y(it.y));k.lineTo(W,Y(it.y))}k.stroke();k.restore()}
       else if(it.type==='imp')this.imp(it);
       else if(it.type==='fn'){k.save();k.strokeStyle=it.color;k.lineWidth=it.w||3;k.lineJoin='round';if(it.dash)k.setLineDash([9,6]);if(it.alpha)k.globalAlpha=it.alpha;k.beginPath();let pen=false,py=0;

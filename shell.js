@@ -1,5 +1,6 @@
 /* shell.js — общий тёмный сайдбар на каждой странице (без iframe: он ломается на file://) */
 (function(){
+if(!document.querySelector('link[rel~="icon"]')){const ic=document.createElement('link');ic.rel='icon';ic.type='image/png';ic.href='favicon.png';document.head.appendChild(ic)}
 const M=[['Выражения'],['factor','x²','Разложение на множители'],['Функции'],['graph','∿','Построение графиков'],['quadratic','∪','Квадратичная функция'],['Уравнения и неравенства'],['equations','=','Уравнения и системы'],['inequalities','≤','Неравенства'],['Дальше'],['sequences','∑','Прогрессии'],['combinatorics','!','Комбинаторика, вероятность']];
 const cur=(location.pathname.split('/').pop()||'').replace('.html','');
 const css=`body{padding:26px 30px 60px 282px!important}.a9side{position:fixed;left:0;top:0;bottom:0;width:250px;background:#151824;color:#8b93a7;padding:22px 14px;display:flex;flex-direction:column;overflow-y:auto;z-index:50;font-family:'Segoe UI',system-ui,sans-serif}
@@ -11,6 +12,6 @@ const css=`body{padding:26px 30px 60px 282px!important}.a9side{position:fixed;le
 .a9side .foot{margin-top:auto;font-size:12px;text-align:center;padding-top:12px}
 @media(max-width:760px){body{padding:70px 14px 40px!important}.a9side{width:100%;height:56px;bottom:auto;flex-direction:row;align-items:center;padding:8px;overflow-x:auto;overflow-y:hidden}.a9side .brand,.a9side .grp,.a9side .foot{display:none}.a9side a{white-space:nowrap}}`;
 document.addEventListener('DOMContentLoaded',()=>{const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
-  const n=document.createElement('nav');n.className='a9side';n.innerHTML='<div class="brand">Алгебра<span>9</span></div>'+M.map(m=>m.length===1?`<div class="grp">${m[0]}</div>`:`<a href="${m[0]}.html" class="${m[0]===cur?'on':''}"><span class="ic">${m[1]}</span>${m[2]}</a>`).join('')+'<div class="foot">Помощник Артему К.</div>';
+  const n=document.createElement('nav');n.className='a9side';n.innerHTML='<div class="brand">Алгебра<span>9</span></div>'+M.map(m=>m.length===1?`<div class="grp">${m[0]}</div>`:`<a href="${m[0]}.html" class="${m[0]===cur?'on':''}"><span class="ic">${m[1]}</span>${m[2]}</a>`).join('')+'<div class="foot">Помощник по алгебре, 9 класс</div>';
   document.body.prepend(n)});
 })();

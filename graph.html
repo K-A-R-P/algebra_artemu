@@ -6,8 +6,7 @@
 <label><input type="checkbox" id="oSpec" checked>особые точки</label><label><input type="checkbox" id="oTab" checked>точки таблицы</label></div><div id="ex"></div><div class="err" id="err"></div></div>
 <div id="plot"></div><div class="small" style="margin-bottom:16px">Колесо мыши — масштаб · перетаскивание — сдвиг · двойной клик — вернуть вид · наведи курсор на график, чтобы увидеть точку.</div>
 <div class="card" id="finder" hidden><h3>Найти точку на графике</h3>
-<div class="row" style="margin-top:0"><div class="cs" id="fsel"></div></div>
-<div class="row"><div class="seg" id="seg" title="Что у тебя есть: x или y"><button data-v="x" class="on">x</button><button data-v="y">y</button></div><label><span id="plab">x =</span><span id="pvh"></span></label><button class="btn g" id="bF">Найти y</button><button class="btn g" id="bC">Убрать точки</button></div><div id="pout" style="margin-top:12px"></div></div>
+<div class="frow"><div class="cs" id="fsel"></div><div class="fctl"><div class="seg" id="seg" title="Что у тебя есть: x или y"><button data-v="x" class="on">x</button><button data-v="y">y</button></div><span class="eq">=</span><span id="pvh"></span><button class="btn g" id="bF">Найти y</button><button class="btn g" id="bC">Убрать точки</button></div></div><div id="pout" style="margin-top:12px"></div></div>
 <div id="cards"></div></div>
 <script>
 const cardsIn=mount('cards');
@@ -90,39 +89,42 @@ function tableXs(fn,A){const c=A.poly,sq9=x=>Array.from({length:9},(_,i)=>x+i-4)
     for(const e of[1,2,3,4,5,6,8,10,12]){if(D.length>=4)break;if(!D.includes(e))D.push(e)}D=D.sort((a,b)=>a-b).slice(0,4);
     return{xs:[...D.map(d=>snap(m-d)).reverse(),...D.map(d=>snap(m+d))],cx:m,step:1,kind:'hyp',note:fromK?`Значения x — это делители числа k = ${fmtNum(k,'coef')}, сдвинутые на m = ${fmtNum(m,'table')}: так значения y получаются целыми.`:''}}
   if(c&&c.length<=2){const k=c.length===2?c[1]:0,fk=toFr(Math.abs(k),64);let step=1,note='';if(fk&&fk[1]>1&&fk[1]<=6){step=fk[1];note=`Шаг таблицы равен ${step}, так как коэффициент k = ${fmtNum(k,'coef')} — дробь со знаменателем ${step}. Если брать x подряд, значения y получаются дробными. Чтобы y были целыми, берём x, кратные ${step}.`}
-    return{xs:Array.from({length:9},(_,i)=>(i-4)*step),cx:0,step,note,kind:'lin'}}
+    return{xs:[-step,0,step],cx:0,step,note,kind:'lin'}}
   const d=domBounds(fn.f);let cx=0;if(d.lo!==null&&d.hi===null)cx=d.lo;else if(d.hi!==null&&d.lo===null)cx=d.hi;else if(d.lo!==null)cx=snap((d.lo+d.hi)/2,1e-7);else cx=A.ext.length?Math.round(A.ext[0].x):0;
   const xs=smartXs(fn.f,cx,9),irr=xs.some(x=>{const y=fn.f(x);return isFinite(y)&&!toFr(y,200,1e-9)});
   return{xs,cx,step:1,kind:'gen',note:irr?'Значения y дробные, так как корни иррациональные — строим по приближённым точкам.':''}}
 const pr=v=>v<0?`(${num(v)})`:num(v);
 const tipStore=[];
 const S=x=>fmtNum(x,'solution'),TB=x=>fmtNum(x,'table');
+function vertexCalc(fn,x0){const[,b,a]=fn.A.poly,y0=snap(fn.f(x0),1e-7),ch=chainFor(fn,x0);
+  return{x:`x₀ = −${frHTML('b','2a')} = −${frHTML(pr(b),'2·'+pr(a))} = <b>${S(x0)}</b>`,y:`y₀ = f(${S(x0)}) = ${ch.html}`,y0}}
 function solutionHTML(fn,A){const T=tableXs(fn,A),c=A.poly,st=[];fn.table=T.xs.map(x=>[x,fn.f(x)]);
-  const CH=T.xs.map(x=>chainFor(fn,x)),ti=T.xs.map((x,i)=>tipStore.push(`<b>x = ${TB(x)}</b><br>y = ${CH[i].html}`)-1),uid=ti[0];
-  const cellH=(h,c,i)=>`<td class="hc" data-col="${uid}-${i}" data-ti="${ti[i]}"${c?' style="background:#dbe8ff;font-weight:700"':''}>${h}</td>`;
-  const hl=x=>T.kind==='par'&&Math.abs(x-T.cx)<1e-9,isV=x=>T.kind==='par'&&Math.abs(x-T.x0)<1e-9,yv=y=>isFinite(y)?TB(snap(y,1e-7)):'—';
-  const compact=`<div style="overflow-x:auto"><table class="t"><tr><th>x</th>${fn.table.map(([x],i)=>cellH(TB(x),hl(x),i)).join('')}</tr><tr><th>y</th>${fn.table.map(([x,y],i)=>cellH(yv(y),hl(x),i)).join('')}</tr></table></div>`+'<div class="small" style="margin-top:4px">Наведи курсор на столбец — появится полное решение для этого x.</div>'+(T.note?`<div class="small" style="margin-top:4px">${T.note}</div>`:'');
+  const isPar=T.kind==='par',same=isPar&&Math.abs(T.cx-T.x0)<1e-9,CH=T.xs.map(x=>chainFor(fn,x));
+  const tip=(x,i)=>{if(!(isPar&&Math.abs(x-T.cx)<1e-9))return`<b>x = ${TB(x)}</b><br>y = ${CH[i].html}`;
+    const v=vertexCalc(fn,T.x0);return`<b>${same?'Центр таблицы — вершина параболы':'Центр таблицы'}</b><br>${v.x}<br>${v.y}`+(same?'':`<br>Центр берём в ближайшем удобном x = ${TB(T.cx)}: y = ${CH[i].html}`)};
+  const ti=T.xs.map((x,i)=>tipStore.push(tip(x,i))-1),uid=ti[0];
+  const cellH=(h,c,i)=>`<td class="hc${c?' cc':''}" data-col="${uid}-${i}" data-ti="${ti[i]}">${h}</td>`;
+  const hl=x=>isPar&&Math.abs(x-T.cx)<1e-9,isV=x=>isPar&&Math.abs(x-T.x0)<1e-9,yv=y=>isFinite(y)?TB(snap(y,1e-7)):'—';
+  const compact=`<div style="overflow-x:auto"><table class="t"><tr><th>x</th>${fn.table.map(([x],i)=>cellH(TB(x),hl(x),i)).join('')}</tr><tr><th>y</th>${fn.table.map(([x,y],i)=>cellH(yv(y),hl(x),i)).join('')}</tr></table></div>`+`<div class="small" style="margin-top:4px">Наведи курсор на столбец — появится полное решение для этого x.${isPar?' Выделенный столбец — центр таблицы'+(same?' (вершина).':'.'):''}</div>`+(T.note?`<div class="small" style="margin-top:4px">${T.note}</div>`:'');
   const rows=T.xs.map((x,i)=>isV(x)?'':`<tr><td>${TB(x)}</td><td style="text-align:left;white-space:nowrap">y = ${CH[i].html}</td></tr>`).join('');
-  const detail=`<table class="t"><tr><th>x</th><th>Подстановка и вычисление</th></tr>${rows}</table>`;
+  const calc=`<details class="ref" style="margin-top:12px"><summary>Откуда взялись значения</summary><table class="t"><tr><th>x</th><th>Подстановка и вычисление</th></tr>${rows}</table>`+(same?'<div class="small" style="margin-top:6px">Вершину здесь не повторяем: её вычисление — в пункте «Вершина» выше и во всплывающей подсказке над выделенным столбцом.</div>':'')+'</details>';
   const sym=()=>{const L=[];for(let k=1;k<=4;k++){const a=fn.table.find(p=>Math.abs(p[0]-(T.cx-k*T.step))<1e-9),b=fn.table.find(p=>Math.abs(p[0]-(T.cx+k*T.step))<1e-9);if(a&&b&&isFinite(a[1])&&Math.abs(a[1]-b[1])<1e-9)L.push(`f(${TB(a[0])}) = f(${TB(b[0])})`)}return L.join(', ')};
-  if(T.kind==='par'){const[cc,b,a]=c,y0=snap(fn.f(T.x0),1e-7),ch=chainFor(fn,T.x0);
-    st.push({t:'Находим вершину — она будет в центре таблицы',b:`x₀ = −${frHTML('b','2a')} = −${frHTML(pr(b),'2·'+pr(a))} = <b>${S(T.x0)}</b><span class="formula">y₀ = ${ch.html}</span>Вершина: <b>(${TB(T.x0)}; ${TB(y0)})</b>.${Math.abs(T.cx-T.x0)<1e-9?'':' Центр таблицы берём в ближайшем удобном x = '+TB(T.cx)+'.'}`});
-    st.push({t:'Симметрия: правую половину можно не считать',b:`Центр таблицы — вершина (${TB(T.x0)}; ${TB(y0)}). Парабола симметрична относительно прямой x = ${TB(T.x0)}, поэтому ${sym()||'значения слева и справа от центра совпадают'}.`});
-    st.push({t:'Таблица для тетради',b:compact});
-    st.push({t:'Откуда взялись значения',b:detail+'Вершину здесь не повторяем — мы посчитали её выше.'});
-    st.push({t:'Проверка по опорным точкам',b:`(0; ${TB(snap(cc,1e-7))}) — пересечение с Oy; ${A.roots.length?'нули: '+A.roots.map(r=>`(${TB(r)}; 0)`).join(', ')+' — решения уравнения f(x) = 0;':'нулей нет;'} вершина (${TB(T.x0)}; ${TB(y0)}). Если таблица им противоречит — где-то ошибка.`});
-    st.push({t:'Строим график',b:`Отметь точки на клетчатом листе и проведи через них <b>плавную</b> линию (не ломаную). Ветви ${a>0?'направлены вверх':'направлены вниз'}.`})}
+  if(isPar){const[cc,b,a]=c,x0=T.x0,y0=snap(fn.f(x0),1e-7),V=vertexCalc(fn,x0),sm=same?sym():'';
+    st.push({t:'Направление ветвей',b:a>0?`a = ${CF(a)} > 0 → ветви направлены <b>вверх</b>, вершина — наименьшая точка графика.`:`a = ${CF(a)} < 0 → ветви направлены <b>вниз</b>, вершина — наибольшая точка графика.`});
+    st.push({t:'Вершина и ось симметрии',b:`<span class="formula">${V.x}</span><span class="formula">${V.y}</span>Вершина: <b>(${TB(x0)}; ${TB(y0)})</b>. Ось симметрии: <b>x = ${TB(x0)}</b> (обычно рисуют пунктиром).`});
+    st.push({t:'Точки пересечения с осями',b:`с Oy: (0; ${TB(snap(cc,1e-7))}) — это свободный член c.${A.roots.length?'<br>с Ox (нули): '+A.roots.map(r=>`(${TB(r)}; 0)`).join(', ')+'.':'<br>с Ox: нулей нет — парабола не пересекает ось Ox.'}`});
+    st.push({t:'Таблица значений',b:`Парабола симметрична относительно оси x = ${TB(x0)}. Достаточно построить точки с одной стороны и отразить их.${sm?' Например: '+sm+'.':''}${same?'':' Вершина в нецелой точке, поэтому центр таблицы взят в ближайшем удобном x = '+TB(T.cx)+'.'}`+compact+calc});
+    st.push({t:'Строим график',b:`Отметь вершину, ось симметрии, точки из таблицы и точки пересечения с осями. Проведи через них <b>плавную</b> кривую (не ломаную). Ветви ${a>0?'вверх':'вниз'}.`})}
   else if(T.kind==='lin'){const k=c&&c.length===2?c[1]:0;
-    st.push({t:'Таблица для тетради',b:'Для прямой достаточно двух точек, но возьмём девять — так легко проверить себя.'+compact});
-    st.push({t:'Откуда взялись значения',b:detail});
+    st.push({t:'Таблица значений',b:'Для прямой достаточно двух точек, третья — для проверки.'+compact+calc});
     st.push({t:'Проверка',b:k?`Когда x увеличивается на ${T.step}, y каждый раз ${k>0?'растёт':'уменьшается'} на ${S(Math.abs(k*T.step))}. Если шаг получился другой — ошибка в вычислении.`:'Все y одинаковые — график горизонтальная прямая.'});
     st.push({t:'Строим график',b:'Отметь точки — они лягут на одну прямую. Приложи линейку и проведи линию через все точки.'})}
   else if(T.kind==='hyp'){const{m,n}=A.hyper;
     st.push({t:'Особая точка',b:`При x = ${TB(m)} знаменатель равен 0 — функция там не определена, поэтому в таблице этого x нет. Берём по 4 значения слева и справа (8 точек).`});
-    st.push({t:'Таблица для тетради',b:compact});st.push({t:'Откуда взялись значения',b:detail});
+    st.push({t:'Таблица значений',b:compact+calc});
     st.push({t:'Проверка и построение',b:`Центр симметрии гиперболы — точка (${TB(m)}; ${TB(n)}): точки справа и слева от x = ${TB(m)} лежат симметрично относительно неё. Рисуем две ветви отдельно, каждая приближается к асимптотам x = ${TB(m)} и y = ${TB(n)}, но не пересекает их.`})}
   else{st.push({t:'Выбираем значения x',b:`Берём девять значений x${A.poles.length?', не равных '+A.poles.map(TB).join(', '):''}${isNaN(fn.f(T.cx-8))||isNaN(fn.f(T.cx+8))?', внутри области определения':''}, при которых y выходят «красивыми» (целыми или простыми дробями), насколько это возможно.`});
-    st.push({t:'Таблица для тетради',b:compact});st.push({t:'Откуда взялись значения',b:detail});st.push({t:'Строим график',b:'Отметь точки на клетчатом листе и соедини их плавной линией.'})}
+    st.push({t:'Таблица значений',b:compact+calc});st.push({t:'Строим график',b:'Отметь точки на клетчатом листе и соедини их плавной линией.'})}
   return`<div class="small" style="margin:12px 0 6px"><b>Как построить график по точкам</b></div>`+stepsHTML(st)}
 /* ===== определение типа графика (9 класс) ===== */
 const hasX=n=>{let f=false;n.traverse(c=>{if(c.type==='SymbolNode'&&c.name==='x')f=true});return f};
@@ -151,10 +153,10 @@ function summary(fam,A){const p=fam.params;switch(fam.type){
 const sqS=D=>{let s=1,m=D;for(let i=2;i*i<=m;i++)while(m%(i*i)===0){m/=i*i;s*=i}return[s,m]};
 const box=(t,b)=>`<div style="background:#f0f7ff;padding:8px 12px;border-radius:8px;margin-top:6px;border-left:3px solid var(--ac);font-size:14px"><b>${t}</b><br>${b}</div>`;
 function dExplain(D){const cur=D>0?1:D===0?2:3,w=(i,t)=>i===cur?`<b>${t}</b>`:`<span style="opacity:.55">${t}</span>`;
-  return box('Почему так?',[w(1,`D > 0 (например, 4, 9, 64) → <u>два корня</u>. Корни считаем по формуле x = ${frHTML('−b ± '+rt('D'),'2a')}: «плюс» и «минус» перед √D дают два разных числа. Парабола пересекает ось Ox в двух точках.`),
+  return[w(1,`D > 0 (например, 4, 9, 64) → <u>два корня</u>. Корни считаем по формуле x = ${frHTML('−b ± '+rt('D'),'2a')}: «плюс» и «минус» перед √D дают два разных числа. Парабола пересекает ось Ox в двух точках.`),
     w(2,'D = 0 → <u>один корень</u>. √0 = 0, а «плюс-минус ноль» ничего не меняет: оба значения совпадают. Парабола касается оси Ox вершиной.'),
-    w(3,'D < 0 (например, −5, −12) → <u>корней нет</u>. Из отрицательного числа нельзя извлечь корень (в школе), поэтому x найти нельзя. Парабола вообще не долетает до оси Ox.')].join('<br>'))}
-function zerosBox(fn,A,fam){const p=fam.params,intro='Ось Ox — горизонтальная ось, где <b>y всегда равен 0</b>. Подставим y = 0 в формулу и решим получившееся уравнение:';let b='';
+    w(3,'D < 0 (например, −5, −12) → <u>корней нет</u>. Из отрицательного числа нельзя извлечь корень (в школе), поэтому x найти нельзя. Парабола вообще не долетает до оси Ox.')].join('<br>')}
+function zerosContent(fn,A,fam){const p=fam.params,intro='Ось Ox — горизонтальная ось, где <b>y всегда равен 0</b>. Подставим y = 0 в формулу и решим получившееся уравнение:';let b='';
   const fx=`<span class="formula">${pretty(fn.expr)} = 0</span>`;
   switch(fam.type){
   case'parabola':{const{a,b:bb,c}=p,D=snap(bb*bb-4*a*c);b=`<span class="formula">${polyStr([c,bb,a])} = 0</span>Это квадратное уравнение. Находим дискриминант:<span class="formula">D = b² − 4ac = ${pr(bb)}² − 4·${pr(a)}·${pr(c)} = ${CF(D)}</span>`;
@@ -171,23 +173,65 @@ function zerosBox(fn,A,fam){const p=fam.params,intro='Ось Ox — горизо
   case'abs':if(p){const r=snap(-p.n/p.k);b=fx+`Выражаем модуль: <span class="formula">|${xm(p.m)}| = ${S(r)}</span>`+(r<0?'Модуль не бывает отрицательным — решений нет.':r===0?`Модуль равен нулю только когда выражение внутри равно 0: x = ${S(p.m)}.`:`Значит, выражение внутри равно ${S(r)} или ${S(-r)}: x = ${S(snap(p.m+r))} или x = ${S(snap(p.m-r))}.`)}break;
   case'sqrt':if(p&&p.dir==='right'){const r=snap(-p.n/p.k);b=fx+`Выражаем корень: <span class="formula">√(${xm(p.m)}) = ${S(r)}</span>`+(r<0?'Квадратный корень не бывает отрицательным — решений нет.':`Возводим обе части в квадрат: ${p.m===0?'':xm(p.m)+' = '+S(snap(r*r))+', откуда '}x = ${S(snap(p.m+r*r))}.`)}break}
   if(!b)b=fx+(A.roots.length?`Решаем уравнение: ${A.roots.map(S).join('; ')}.`:'Решений нет.');
-  return box('Как мы это узнали?',intro+b)}
+  return intro+b}
+function zerosBox(fn,A,fam){return box('Как мы это узнали?',zerosContent(fn,A,fam))}
+function monoInfo(fn,A,fam){const p=fam.params;
+  if(fam.type==='parabola'){const x0=CF(p.x0);return p.a>0
+    ?`Убывает на (−∞; ${x0}], возрастает на [${x0}; +∞)`
+    :`Возрастает на (−∞; ${x0}], убывает на [${x0}; +∞)`}
+  if(fam.type==='line')return p.k>0?`Возрастает на всей области определения (k > 0)`:p.k<0?`Убывает на всей области определения (k < 0)`:`Постоянна (горизонтальная прямая)`;
+  if(fam.type==='abs'&&p){const m=CF(p.m);return p.k>0?`Убывает на (−∞; ${m}], возрастает на [${m}; +∞)`:`Возрастает на (−∞; ${m}], убывает на [${m}; +∞)`}
+  return null}
+function monoExplain(fn,A,fam){const p=fam.params;
+  if(fam.type==='parabola')return p.a>0
+    ?`Смотрим на вершину (x₀ = ${CF(p.x0)}). Слева от неё парабола идёт вниз → функция <b>убывает</b>. Справа — идёт вверх → <b>возрастает</b>. Вершину включают в оба промежутка.`
+    :`Смотрим на вершину (x₀ = ${CF(p.x0)}). Слева от неё парабола идёт вверх → функция <b>возрастает</b>. Справа — идёт вниз → <b>убывает</b>. Вершину включают в оба промежутка.`;
+  if(fam.type==='line')return p.k>0?'Коэффициент k > 0: при увеличении x значение y тоже растёт — прямая идёт вверх.':'Коэффициент k < 0: при увеличении x значение y уменьшается — прямая идёт вниз.';
+  return ''}
+function domainExplain(fn,A,fam){
+  if(A.poles.length)return`Функция не определена в точках, где знаменатель равен нулю: x = ${A.poles.map(CF).join(', ')}. В остальных точках выражение имеет смысл.`;
+  if(fam.type==='sqrt')return`Квадратный корень определён только при неотрицательном подкоренном выражении. Решаем соответствующее неравенство — получаем область определения.`;
+  if(A.poly)return`Многочлен (в том числе парабола и прямая) определён при любом x: можно подставить любое число. Поэтому D(f) = (−∞; +∞).`;
+  return`Область определения — все x, при которых выражение имеет смысл (нет деления на ноль и корня из отрицательного).`}
+function rangeExplain(fn,A,fam){const p=fam.params;
+  if(fam.type==='parabola')return p.a>0
+    ?`Ветви вверх → наименьшее значение функция принимает в вершине (y = ${CF(p.y0)}). Выше этого значения функция может принимать любые числа. Поэтому E(f) = [${CF(p.y0)}; +∞).`
+    :`Ветви вниз → наибольшее значение функция принимает в вершине (y = ${CF(p.y0)}). Ниже этого значения функция может принимать любые числа. Поэтому E(f) = (−∞; ${CF(p.y0)}].`;
+  if(fam.type==='line')return`Прямая (не горизонтальная) принимает все действительные значения → E(f) = (−∞; +∞).`;
+  if(fam.type==='const')return`Функция всегда равна одному и тому же числу.`;
+  if(A.hyper)return`Гипербола не принимает значение горизонтальной асимптоты y = ${CF(A.hyper.n)}, а все остальные значения — принимает.`;
+  return`Область значений — все числа y, которые функция реально принимает.`}
 function card(fn){const A=fn.A,c=A.poly;const fam=detectFamily(fn.expr,A);let h=`<h3 style="color:${fn.color}">y = ${pretty(fn.expr)}</h3><div style="font-weight:800;margin:2px 0 10px;line-height:1.5">${summary(fam,A)}</div><ul class="info">`;
+  /* --- 1. Тип и коэффициенты --- */
   if(c&&c.length===1)h+=li(`<b>Постоянная функция</b>: график — горизонтальная прямая y = ${CF(c[0])}.`);
-  else if(c&&c.length===2){const[b,k]=c;h+=li(`<b>Линейная функция</b> y = kx + b, здесь k = ${CF(k)}, b = ${CF(b)}.`)+li(k>0?'k > 0 — функция <b>возрастает</b> (прямая идёт вверх).':'k < 0 — функция <b>убывает</b> (прямая идёт вниз).')+li(`Прямая задаётся двумя точками: (0; ${CF(b)}) и (${CF(snap(-b/k))}; 0). Отметь их и проведи линейку.`)}
-  else if(c&&c.length===3){const[cc,b,a]=c,x0=snap(-b/(2*a)),y0=snap(a*x0*x0+b*x0+cc),D=snap(b*b-4*a*cc);
-    h+=li(`<b>Парабола</b> y = ax² + bx + c: a = ${CF(a)}, b = ${CF(b)}, c = ${CF(cc)}.`)+li(a>0?'a > 0 — <b>ветви вверх</b>, вершина — наименьшая точка.':'a < 0 — <b>ветви вниз</b>, вершина — наибольшая точка.')
-      +li(`Вершина: x₀ = −${frHTML('b','2a')} = ${CF(x0)}, y₀ = ${CF(y0)}. Ось симметрии: x = ${CF(x0)}.`)+li(Math.abs(a)>1?`|a| = ${CF(Math.abs(a))} > 1 — парабола «уже», чем y = x².`:Math.abs(a)<1?`|a| = ${CF(Math.abs(a))} < 1 — парабола «шире», чем y = x².`:'|a| = 1 — такая же форма, как у y = x².')
-      +li(`D = b² − 4ac = ${CF(D)} → ${D>0?'<b>два корня</b>':D===0?'<b>один корень</b>':'<b>корней нет</b>'}.${dExplain(D)}`)}
-  else if(A.hyper){const{k,m,n}=A.hyper;h+=li(`<b>Гипербола</b> y = ${frHTML('k','x − m')} + n: k = ${CF(k)}, m = ${CF(m)}, n = ${CF(n)}.`)+li(`Центр симметрии — точка (${CF(m)}; ${CF(n)}). Асимптоты: x = ${CF(m)} и y = ${CF(n)} — к ним график приближается, но не касается.`)+li(k>0?'k > 0 — ветви в I и III «четвертях» относительно центра.':'k < 0 — ветви в II и IV «четвертях» относительно центра.')+li('Две ветви рисуй отдельно — через точку x = m график не проходит.')}
+  else if(c&&c.length===2){const[b,k]=c;h+=li(`<b>Линейная функция</b> y = kx + b: k = ${CF(k)}, b = ${CF(b)}.`)
+    +li(k>0?'k > 0 — функция <b>возрастает</b> (прямая идёт вверх).':k<0?'k < 0 — функция <b>убывает</b> (прямая идёт вниз).':'k = 0 — горизонтальная прямая.')
+    +li(`Прямая задаётся двумя точками: (0; ${CF(b)}) и (${CF(snap(-b/k))}; 0). Отметь их и проведи линейку.`)}
+  else if(c&&c.length===3){const[cc,b,a]=c,x0=snap(-b/(2*a)),V=vertexCalc(fn,x0);
+    h+=li(`<b>Парабола</b> y = ax² + bx + c. Коэффициенты: a = ${CF(a)}, b = ${CF(b)}, c = ${CF(cc)}.`)
+      +li(a>0?'a > 0 — <b>ветви вверх</b>, вершина — наименьшая точка.':'a < 0 — <b>ветви вниз</b>, вершина — наибольшая точка.')
+      +li(Math.abs(a)>1?`|a| = ${CF(Math.abs(a))} > 1 — парабола «уже», чем y = x².`:Math.abs(a)<1?`|a| = ${CF(Math.abs(a))} < 1 — парабола «шире», чем y = x².`:'|a| = 1 — такая же форма, как у y = x².')
+      +li(`<b>Вершина</b><span class="formula">${V.x}</span><span class="formula">${V.y}</span>→ вершина <b>(${CF(x0)}; ${CF(V.y0)})</b>, ось симметрии <b>x = ${CF(x0)}</b>.`)}
+  else if(A.hyper){const{k,m,n}=A.hyper;h+=li(`<b>Гипербола</b> y = ${frHTML('k','x − m')} + n: k = ${CF(k)}, m = ${CF(m)}, n = ${CF(n)}.`)
+    +li(`Центр симметрии — точка (${CF(m)}; ${CF(n)}). Асимптоты: x = ${CF(m)} и y = ${CF(n)} — к ним график приближается, но не касается.`)
+    +li(k>0?'k > 0 — ветви в I и III «четвертях» относительно центра.':'k < 0 — ветви в II и IV «четвертях» относительно центра.')
+    +li('Две ветви рисуй отдельно — через точку x = m график не проходит.')}
   else if(A.poles.length)h+=li(`<b>Дробно-рациональная функция</b>: при x = ${A.poles.map(p=>CF(p)).join(', ')} она не определена — там вертикальная асимптота (штриховая линия).`);
   else if(fam.type==='sqrt')h+=li(`<b>Квадратный корень</b> определён только там, где подкоренное выражение неотрицательно. График — «половина параболы, лежащей на боку»; чем дальше вправо, тем медленнее он растёт.`);
   else if(fam.type==='abs')h+=li('<b>Модуль</b> не бывает отрицательным: график состоит из двух лучей, сходящихся в вершине («галочка»).');
   else h+=li('Функция общего вида. Чтобы построить график, составь таблицу значений и соедини точки плавной линией.');
   if(A.ha!==null&&!A.hyper&&A.poles.length)h+=li(`Горизонтальная асимптота: y = ${CF(A.ha)}.`);
-  h+=li(`<b>Область определения:</b> D(f) = ${domainInfo(fn.f,A)}.`)+li(`<b>Область значений:</b> E(f) = ${rangeInfo(fn.f,A)}.`);
-  h+=li((A.roots.length?`<b>Нули функции</b> (пересечение с Ox, y = 0): x = ${A.roots.map(TB).join('; ')}.`:'График <b>не пересекает</b> ось Ox — нулей нет.')+zerosBox(fn,A,fam));
-  if(A.yint!==null){const ch=chainFor(fn,0);h+=li(`<b>Пересечение с Oy:</b> (0; ${CF(snap(A.yint))}).`+box('Как мы это узнали?',`Ось Oy — вертикальная ось, где <b>x всегда равен 0</b>. Подставим x = 0 в формулу:<span class="formula">y(0) = ${ch.html}</span>`+(c&&c.length===3?'Это и есть свободный член <b>c</b> (число без x): у любой параболы y = ax² + bx + c график пересекает Oy в точке (0; c).':'')))}
+  /* --- 2. D(f) --- */
+  h+=li(`<b>Область определения:</b> D(f) = ${domainInfo(fn.f,A)}.<details class="ref" style="margin-top:6px"><summary>Почему так?</summary><div style="margin-top:6px">${domainExplain(fn,A,fam)}</div></details>`);
+  /* --- 3. E(f) --- */
+  h+=li(`<b>Область значений:</b> E(f) = ${rangeInfo(fn.f,A)}.<details class="ref" style="margin-top:6px"><summary>Почему так?</summary><div style="margin-top:6px">${rangeExplain(fn,A,fam)}</div></details>`);
+  /* --- 4. Монотонность --- */
+  const mono=monoInfo(fn,A,fam);if(mono)h+=li(`<b>Возрастание / убывание:</b> ${mono}.<details class="ref" style="margin-top:6px"><summary>Как определить?</summary><div style="margin-top:6px">${monoExplain(fn,A,fam)}</div></details>`);
+  /* --- 5. Пересечения с осями --- */
+  let X='';
+  if(A.yint!==null){const ch=chainFor(fn,0);X+=`<div style="margin-top:6px"><b>С осью Oy</b> (x = 0): точка <b>(0; ${CF(snap(A.yint))})</b>.<details class="ref" style="margin-top:6px"><summary>Как мы это узнали?</summary><div style="margin-top:6px">Ось Oy — вертикальная ось, где <b>x всегда равен 0</b>. Подставим x = 0 в формулу:<span class="formula">y(0) = ${ch.html}</span>`+(c&&c.length===3?'Это и есть свободный член <b>c</b> (число без x): у любой параболы y = ax² + bx + c график пересекает Oy в точке (0; c).':'')+`</div></details></div>`}
+  X+=`<div style="margin-top:10px"><b>С осью Ox</b> (y = 0): ${A.roots.length?'нули функции x = '+A.roots.map(TB).join('; ')+'.':'нулей нет — график <b>не пересекает</b> ось Ox.'}<details class="ref" style="margin-top:6px"><summary>Как нашли нули?</summary><div style="margin-top:6px">${zerosContent(fn,A,fam)}</div></details>`+(c&&c.length===3?`<details class="ref" style="margin-top:6px"><summary>Почему так (про дискриминант)?</summary><div style="margin-top:6px">${dExplain(snap(c[1]*c[1]-4*c[2]*c[0]))}</div></details>`:'')+`</div>`;
+  h+=li('<b>Точки пересечения с осями</b>'+X);
   return`<div class="info" style="margin-bottom:22px;padding-bottom:6px;border-bottom:1px solid var(--bd)">${h}</ul>${solutionHTML(fn,A)}</div>`}
 function build(){$('#err').textContent='';tipStore.length=0;
   try{fns=LIST.values().map((raw,i)=>{const e=stripY(raw);return{raw,expr:e,f:compile(e),color:COL[i%5],label:'y = '+prettyT(e),html:'y = '+pretty(e)}})}catch(e){$('#err').textContent='Не понял выражение: '+e.message;return}
@@ -195,7 +239,8 @@ function build(){$('#err').textContent='';tipStore.length=0;
   const items=[],P=[];let cards='';
   fns.forEach(fn=>{const A=fn.A=analyze(fn.f);cards+=card(fn);items.push({type:'fn',f:fn.f,color:fn.color,label:fn.label,html:fn.html});
     A.poles.forEach(p=>{items.push({type:'vline',x:p,color:fn.color});P.push([p,0])});if(A.ha!==null&&A.poles.length)items.push({type:'hline',y:A.ha,color:fn.color});
-    if($('#oSpec').checked){A.roots.slice(0,6).forEach(r=>{items.push({type:'pt',x:r,y:0,color:fn.color,small:true});P.push([r,0])});
+    if($('#oSpec').checked){if(A.poly&&A.poly.length===3){const ax0=snap(-A.poly[1]/(2*A.poly[2]));if(Math.abs(ax0)>1e-9)items.push({type:'vline',x:ax0,color:fn.color,dash:[18,4,3,4],w:1.5})}
+      A.roots.slice(0,6).forEach(r=>{items.push({type:'pt',x:r,y:0,color:fn.color,small:true});P.push([r,0])});
       if(A.yint!==null){items.push({type:'pt',x:0,y:A.yint,color:fn.color,small:true});P.push([0,A.yint])}
       A.ext.slice(0,3).forEach(e=>{items.push({type:'pt',x:e.x,y:e.y,color:fn.color,pulse:true,guide:true,nolabel:true});P.push([e.x,e.y])});
       if(A.hyper){items.push({type:'pt',x:A.hyper.m,y:A.hyper.n,color:fn.color,pulse:true,guide:true,nolabel:true});P.push([A.hyper.m,A.hyper.n])}}
@@ -210,7 +255,7 @@ function renderSel(){const host=$('#fsel');if(sel>=fns.length)sel=0;
   host.innerHTML=`<button type="button" class="cs-b"><span style="display:flex;align-items:center;gap:10px">${dot(fns[sel])}<span>${fns[sel].html}</span></span><span>▾</span></button><div class="cs-l" hidden>${fns.map((f,i)=>`<div class="cs-o${i===sel?' on':''}" data-i="${i}">${dot(f)}<span>${f.html}</span></div>`).join('')}</div>`;
   const b=host.firstChild,l=host.lastChild;b.onclick=e=>{e.stopPropagation();l.hidden=!l.hidden;b.classList.toggle('open',!l.hidden)};l.onclick=e=>{const o=e.target.closest('.cs-o');if(!o)return;sel=+o.dataset.i;renderSel()}}
 document.addEventListener('click',()=>{const l=$('#fsel .cs-l');if(l){l.hidden=true;$('#fsel .cs-b').classList.remove('open')}});
-$('#seg').onclick=e=>{const b=e.target.closest('button');if(!b)return;given=b.dataset.v;[...$('#seg').children].forEach(c=>c.classList.toggle('on',c===b));$('#plab').textContent=given+' =';$('#bF').textContent='Найти '+(given==='x'?'y':'x')};
+$('#seg').onclick=e=>{const b=e.target.closest('button');if(!b)return;given=b.dataset.v;[...$('#seg').children].forEach(c=>c.classList.toggle('on',c===b));$('#bF').textContent='Найти '+(given==='x'?'y':'x')};
 function subst(expr,xv){const f=toFr(xv,16),s=f?(f[1]===1?String(f[0]):`(${f[0]}/${f[1]})`):String(xv);return pretty(expr.replace(/(?<![a-z])x(?![a-z])/g,`(${s})`))}
 const ans=h=>`<div class="answer"><div class="l">Ответ</div><div class="v">${h}</div></div>`,AN=v=>fmtNum(v,'answer');
 function refine(g,x){for(let i=0;i<8;i++){const h=1e-6,d=(g(x+h)-g(x-h))/(2*h);if(!isFinite(d)||Math.abs(d)<1e-12)break;const nx=x-g(x)/d;if(!isFinite(nx))break;x=nx}return x}
