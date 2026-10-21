@@ -96,3 +96,28 @@ td.colhl{background:#e3ecff!important}td.cc{background:#fff0c2;font-weight:700}t
 .fctl .btn{height:44px}
 .fctl .eq{font:700 22px/44px Georgia,serif;color:var(--mu)}
 #pvh{display:inline-flex}#pvh math-field.mi.sm,#pvh input.mi.sm{height:44px;min-height:44px;vertical-align:top}
+
+/* ---- чипы с функциями: выше, без скролла ---- */
+#ex{align-items:center;padding:4px 0 8px;overflow-y:hidden}
+#ex .chip{height:auto;min-height:40px;padding:4px 14px;display:inline-flex;align-items:center}
+
+/* ---- «Найти точку»: плейсхолдер и значение по центру поля ---- */
+#pvh math-field.mi.sm{display:inline-flex;align-items:center;justify-content:center;padding:0 10px;text-align:center}
+#pvh math-field.mi.sm::part(container){display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:0}
+#pvh math-field.mi.sm::part(content){display:flex;align-items:center;justify-content:center;width:100%;padding:0;margin:0;text-align:center}
+#pvh input.mi.sm{text-align:center}
+
+/* ---- блок «Свойства функции» и аккордеоны со значком ---- */
+.props{margin:14px 0 6px;padding:12px 14px 8px;background:#f7f9fd;border:1px solid var(--bd);border-radius:12px}
+.props-h{font-weight:800;margin-bottom:6px}
+details.acc{border-radius:9px}
+details.acc>summary{display:flex;align-items:flex-start;gap:10px;padding:6px 8px;margin:0 -8px;border-radius:9px;cursor:pointer;list-style:none;color:#46506a}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary:hover,details.acc[open]>summary{background:var(--acs)}
+details.acc>summary b{color:var(--tx)}
+.qi{width:24px;height:24px;flex-shrink:0;margin-top:-1px;transition:transform .15s}
+details.acc[open]>summary .qi{transform:rotate(-12deg) scale(1.08)}
+.acc-b{margin:2px 0 8px 34px;color:#46506a}
+.prow{display:flex;gap:10px;padding:6px 0;color:#46506a}.prow b{color:var(--tx)}
+.prow::before{content:'';width:24px;flex-shrink:0}
+.pgrp{margin-top:4px}
