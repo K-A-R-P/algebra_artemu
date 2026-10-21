@@ -97,10 +97,27 @@ function extrema(g,a=-60,b=60){const dg=x=>(g(x+1e-5)-g(x-1e-5))/2e-5;
 function stepsHTML(steps,answer){return steps.map((s,i)=>`<div class="step"><div class="step-t"><span class="step-n">${i+1}</span>${s.t}</div><div class="step-b">${s.b}</div></div>`).join('')+(answer?`<div class="answer"><div class="l">Ответ</div><div class="v">${answer}</div></div>`:'')}
 function mount(id){const box=document.getElementById(id);box.classList.add('out');box.innerHTML='<div class="in"></div>';addShot(box);return box.firstChild}
 function put(inner,html){inner.innerHTML=html;inner.parentNode.classList.toggle('has',!!html)}
-const KEYS={frac:[frHTML('□','□'),'\\frac{#@}{#?}','()/()'],pow:['<span class="pwn">n</span>','^{#?}','^',[['typedText','^']]],sq:['<span class="pwn">2</span>','^{2}','^2',[['typedText','^'],['typedText','2'],'moveToNextChar']],sqrt:['<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3 7 5-15h6"/></svg>','\\sqrt{#?}','sqrt('],div:[':',':','/'],mul:['·','\\cdot ','*'],
-  lp:['(','(','('],rp:[')',')',')'],plus:['+','+','+'],minus:['−','-','-'],lt:['&lt;','<','<'],gt:['&gt;','>','>'],eq:['=','=','='],
-  abs:['|x|','\\left|#?\\right|','abs('],le:['≤','\\le ','<='],ge:['≥','\\ge ','>='],pi:['π','\\pi ','pi']};
-const TIPS={plus:'Сложение',minus:'Вычитание',mul:'Умножение',div:'Деление',frac:'Дробь: числитель над знаменателем',pow:'Степень: поставь показатель',sq:'Квадрат (степень 2) — для любого выражения',sqrt:'Квадратный корень',abs:'Модуль',lp:'Левая скобка',rp:'Правая скобка',x:'Переменная x',y:'Переменная y',a:'Переменная a',b:'Переменная b',pi:'Число π',lt:'Меньше',gt:'Больше',le:'Меньше или равно',ge:'Больше или равно',eq:'Равно'};
+const KEYS={
+  frac:[frHTML('□','□'),'\\frac{#@}{#?}','()/()'],
+  pow:['<span class="pwn">n</span>','^{#?}','^',[['typedText','^']]],
+  sq:['<span class="pwn">2</span>','^{2}','^2',[['typedText','^'],['typedText','2'],'moveToNextChar']],
+  x2:['x²','x^{2}','x^2'],
+  sqrt:['<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3 7 5-15h6"/></svg>','\\sqrt{#?}','sqrt('],
+  div:[':',':','/'],
+  mul:['·','\\cdot ','*'],
+  lp:['(','(','('],
+  rp:[')',')',')'],
+  plus:['+','+','+'],
+  minus:['−','-','-'],
+  lt:['&lt;','<','<'],
+  gt:['&gt;','>','>'],
+  eq:['=','=','='],
+  abs:['|x|','\\left|#?\\right|','abs('],
+  le:['≤','\\le ','<='],
+  ge:['≥','\\ge ','>='],
+  pi:['π','\\pi ','pi']
+};
+const TIPS={plus:'Сложение',minus:'Вычитание',mul:'Умножение',div:'Деление',frac:'Дробь: числитель над знаменателем',pow:'Степень: поставь показатель',sq:'Квадрат (степень 2) — для любого выражения',sqrt:'Квадратный корень',abs:'Модуль',lp:'Левая скобка',rp:'Правая скобка',x:'Переменная x',x2:'x в квадрате',y:'Переменная y',a:'Переменная a',b:'Переменная b',pi:'Число π',lt:'Меньше',gt:'Больше',le:'Меньше или равно',ge:'Больше или равно',eq:'Равно'};
 function kbInit(host,keys,target){host.classList.add('kb');keys.forEach(k=>{const d=KEYS[k]||[k,k,k],b=document.createElement('button');b.type='button';b.innerHTML=d[0];if(TIPS[k])b.dataset.tip=TIPS[k];b.onmousedown=e=>e.preventDefault();
   b.onclick=()=>{const t=target?target():MI.last;t&&t.insert(d[1],d[2],d[3])};host.appendChild(b)})}
 const defLabel=t=>t.split('\n').map(pretty).join('<span style="opacity:.4"> ; </span>');

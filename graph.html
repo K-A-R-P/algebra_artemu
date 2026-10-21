@@ -1,5 +1,15 @@
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Графики</title><link rel="stylesheet" href="shared.css"><script src="shell.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mathlive"></script><script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.js"></script><script src="lib.js"></script></head><body><div class="wrap">
+<script src="https://cdn.jsdelivr.net/npm/mathlive"></script><script src="https://cdn.jsdelivr.net/npm/mathjs@13/lib/browser/math.js"></script><script src="lib.js"></script>
+<style>
+#pvh math-field.mi.sm,
+#pvh input.mi.sm{
+  width:70px;
+  min-width:70px;
+  max-width:90px;
+  padding:0 8px;
+}
+</style>
+</head><body><div class="wrap">
 <h1>Построение графиков</h1><div class="sub">Параболы, прямые, гиперболы и другие функции — на листе в клетку. Одна функция в строке.</div>
 <div class="card"><div id="list"></div><div id="kb"></div>
 <div class="row"><button class="btn" id="go">Построить</button><button class="btn g" id="clr">Очистить</button>
@@ -11,8 +21,35 @@
 <script>
 const cardsIn=mount('cards');
 const COL=['#e0412f','#2563eb','#16a34a','#9333ea','#ea8a00'],plot=new Plot($('#plot')),LIST=MathList($('#list'),{addHost:$('#kb'),onEnter:()=>{marks=[];$('#pout').innerHTML='';build()}}),PV=MI($('#pvh'),{small:true,placeholder:'число',onEnter:()=>doFind()});
+function selectPVField(){
+  const el=PV.el;
+  if(!el) return;
+  if(el.tagName==='MATH-FIELD'){
+    try{ el.executeCommand('selectAll'); }
+    catch(e){ try{ el.select(); }catch(_){} }
+  }else{
+    try{ el.select(); }catch(e){}
+  }
+}
+
+const pvhBox=$('#pvh');
+
+// клик по числу/плейсхолдеру — обычный путь math-field, выделяем всё
+pvhBox.addEventListener('focusin',()=>setTimeout(selectPVField,0));
+
+// клик по пустому месту поля — принудительно фокусируем и выделяем всё
+pvhBox.addEventListener('mousedown',e=>{
+  const el=PV.el;
+  if(!el) return;
+  const ae=document.activeElement;
+  const focused=ae===el||(el.shadowRoot&&el.shadowRoot.activeElement);
+  if(focused) return;                 // поле уже в фокусе — даём поставить курсор
+  e.preventDefault();                  // не даём math-field «съесть» клик по паддингу
+  el.focus();
+  setTimeout(selectPVField,0);
+});
 $('#kb').insertAdjacentHTML('beforeend','<span class="gap"></span>');
-kbInit($('#kb'),['plus','minus','mul','div','frac','sq','pow','sqrt','abs','lp','rp','x','pi']);
+kbInit($('#kb'),['plus','minus','mul','div','frac','sq','pow','sqrt','abs','lp','rp','x','x2','pi']);
 chipsInit($('#ex'),['y = (1/4)x²','y = -2x²','y = x²\ny = 1.8x²\ny = (1/3)x²','y = 2x − 3','y = 6/(x-1) + 2','y = x² − 4x + 3','y = |x| − 2','y = √x'],t=>{LIST.set(t.split('\n'));marks=[];build()});
 let fns=[],marks=[];
 function analyze(f){const R=findRoots(f),ex=extrema(f),poly=polyDeg(f),yl=f(1e7),yr=f(-1e7);
@@ -265,8 +302,16 @@ function card(fn){const A=fn.A,c=A.poly;const fam=detectFamily(fn.expr,A);let h=
   P.push(acc(`<b>Область значений:</b> E(f) = ${rangeInfo(fn.f,A)}.`,rangeExplain(fn,A,fam)));
   const zb=zerosContent(fn,A,fam)+(c&&c.length===3?box('Про дискриминант: сколько бывает корней',dExplain(snap(c[1]*c[1]-4*c[2]*c[0]))):'');
   P.push(acc(`<b>Нули функции</b> (y = 0, пересечение с Ox): ${A.roots.length?'x = '+A.roots.map(TB).join('; ')+'.':'нулей нет — график <b>не пересекает</b> ось Ox.'}`,zb));
-  if(A.yint!==null){const ch=chainFor(fn,0);P.push(acc(`<b>Пересечение с осью Oy</b> (x = 0): точка <b>(0; ${CF(snap(A.yint))})</b>.`,`Ось Oy — вертикальная ось, где <b>x всегда равен 0</b>. Подставим x = 0 в формулу:<span class="formula">y(0) = ${ch.html}</span>`+(c&&c.length===3?'Это свободный член <b>c</b> — у любой параболы y = ax² + bx + c график пересекает Oy в (0; c).':'')))}
-  const sg=signInfo(fn,A,fam);if(sg)P.push(acc(`<b>Промежутки знакопостоянства:</b><br>f(x) > 0: ${sg.pos}<br>f(x) < 0: ${sg.neg}`,signExplain(fn,A,fam)));
+if(A.yint!==null){
+  const ch=chainFor(fn,0);
+  const parNote=c&&c.length===3
+    ? ' Это свободный член <b>c</b> — у любой параболы y = ax² + bx + c график пересекает Oy в (0; c).'
+    : '';
+  P.push(acc(
+    `<b>Пересечение с осью Oy</b> (x = 0): точка <b>(0; ${CF(snap(A.yint))})</b>.${parNote}`,
+    `Ось Oy — вертикальная ось, где <b>x всегда равен 0</b>. Подставим x = 0 в формулу:<span class="formula">y(0) = ${ch.html}</span>`
+  ))
+}  const sg=signInfo(fn,A,fam);if(sg)P.push(acc(`<b>Промежутки знакопостоянства:</b><br>f(x) > 0: ${sg.pos}<br>f(x) < 0: ${sg.neg}`,signExplain(fn,A,fam)));
   const mono=monoInfo(fn,A,fam);if(mono){const me=monoExplain(fn,A,fam);P.push(me?acc(`<b>Промежутки монотонности:</b> ${mono}.`,me):prow(`<b>Промежутки монотонности:</b> ${mono}.`))}
   const ex=extInfo(fn,A,fam);P.push(acc(`<b>Экстремумы:</b> ${ex.head}`,ex.explain));
   h+=`</ul><div class="props"><div class="props-h">Свойства функции</div>${P.join('')}</div>`;
@@ -309,7 +354,7 @@ function doFind(){try{const fn=fns[sel],v=evalConst(PV.value);marks=[];delete ma
     h=R.length?`<b>Решаем уравнение</b> f(x) = ${S(y)}:<span class="formula">${pretty(fn.expr)} = ${S(y)}</span>На рисунке: проведи горизонталь y = ${S(y)} — в точках пересечения с графиком и лежат ответы.${ans(pm(R,fn,y))}`:`На графике нет точек с y = ${S(y)}: горизонталь y = ${S(y)} его не пересекает.`}
   $('#pout').innerHTML=h;build()}catch(e){$('#pout').innerHTML=`<span class="bad">${e.message}</span>`}}
 $('#bF').onclick=doFind;
-$('#bC').onclick=()=>{marks=[];$('#pout').innerHTML='';build()};
+$('#bC').onclick=()=>{marks=[];$('#pout').innerHTML='';PV.set('');build()};
 const tt=document.createElement('div');tt.className='ttip';tt.hidden=true;document.body.appendChild(tt);let hlCol=null;
 const clearHl=()=>{document.querySelectorAll('td.colhl').forEach(c=>c.classList.remove('colhl'));tt.hidden=true;hlCol=null};
 $('#cards').addEventListener('mouseover',e=>{const td=e.target.closest&&e.target.closest('td[data-ti]');if(!td||td.dataset.col===hlCol)return;clearHl();hlCol=td.dataset.col;document.querySelectorAll(`td[data-col="${hlCol}"]`).forEach(c=>c.classList.add('colhl'));
