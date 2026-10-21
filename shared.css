@@ -121,3 +121,35 @@ details.acc[open]>summary .qi{transform:rotate(-12deg) scale(1.08)}
 .prow{display:flex;gap:10px;padding:6px 0;color:#46506a}.prow b{color:var(--tx)}
 .prow::before{content:'';width:24px;flex-shrink:0}
 .pgrp{margin-top:4px}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(21, 24, 36, 0.7);   /* #151824 світліше через прозорість */
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background .3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #151824;                 /* повний #151824 на ховері */
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
